@@ -281,5 +281,63 @@ class ADV(nn.Module):
     def forward(self, x):
         output = self.adv(x)
         return output
+
+class Critic(nn.Module):
+    def __init__(self, nz):
+        super(Critic, self).__init__()
+        self.adv = nn.Sequential(
+            nn.Linear(nz, nz//2),
+            nn.LeakyReLU(0.2),
+            nn.Linear(nz//2, nz//4),
+            nn.LeakyReLU(0.2),
+            nn.Linear(nz//4, 1)  # <-- sigmoid 없음
+        )
+    
+    def forward(self, x):
+        return self.adv(x)
+
+def gradient_penalty(critic, real, fake, device, gp_weight=10.0):
+    """
+    critic: Critic model
+    real:  (batch_size, nz) - real latent
+    fake:  (batch_size, nz) - fake latent
+    gp_weight: lambda (default 10)
+    """
+    batch_size = min(real.size(0), fake.size(0))
+    real = real[:batch_size]
+    fake = fake[:batch_size]
+    
+    assert not torch.isnan(real).any(), "real contains NaN"
+    assert not torch.isnan(fake).any(), "fake contains NaN"
+
+    t = torch.rand(batch_size, 1, device=device)
+    t = t.expand_as(real)
+
+    interpolated = t * real + (1 - t) * fake
+    interpolated = interpolated.detach().requires_grad_(True)
+    
+    d_interpolated = critic(interpolated)
+    grad = torch.autograd.grad(
+        outputs=d_interpolated,
+        inputs=interpolated,
+        grad_outputs=torch.ones_like(d_interpolated, device=device),
+        create_graph=True,
+        retain_graph=True,
+        only_inputs=True
+    )[0]
+    
+    # Check for gradient explosion
+    if torch.isnan(grad).any() or torch.isinf(grad).any():
+        print("Gradient explosion detected! Clipping gradients.")
+        grad = torch.clamp(grad, -1e6, 1e6)
+    
+    grad_norm = grad.view(batch_size, -1).norm(2, dim=1)
+    if torch.isnan(grad_norm).any() or torch.isinf(grad_norm).any():
+        print("Gradient norm contains NaN or Inf!")
+        grad_norm = torch.clamp(grad_norm, 0, 1e6)
+    
+    gp = gp_weight * ((grad_norm - 1) ** 2).mean()
+    return gp
+
         
         
