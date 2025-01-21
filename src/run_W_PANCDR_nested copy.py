@@ -11,7 +11,7 @@ import os
 nz_ls = [100, 128, 256]
 h_dims_ls = [100, 128, 256]
 lr_ls = [0.001, 0.0001]
-lr_critic_ls = [1, 0.1, 0.01] # lr_critic도 존재한다고 가정
+lr_adv_ls = [0.001, 0.0001]  # lr_adv도 존재한다고 가정
 lam_ls = [1, 0.1, 0.01]
 batch_size_ls = [[128, 14], [256, 28]]
 
@@ -117,7 +117,7 @@ def train_W_PANCDR_nested(
                 'nz': random.choice(nz_ls),
                 'd_dim': random.choice(h_dims_ls),
                 'lr': random.choice(lr_ls),
-                'lr_critic': random.choice(lr_critic_ls),
+                'lr_adv': random.choice(lr_adv_ls),
                 'lam': random.choice(lam_ls),
                 'batch_size': random.choice(batch_size_ls)
             }
@@ -198,10 +198,10 @@ def train_W_PANCDR_nested(
             Y_test_t
         ]
 
-        final_model = DeepCDR(outer_train_data, outer_test_data)
+        final_model = train_W_PANCDR(outer_train_data, outer_test_data)
         
         # weight 저장 경로 설정 (예시)
-        weight_path = f'../checkpoint/VAE/kfold/W-model_best_outerfold_{outer_fold}.pt'
+        weight_path = f'../checkpoint/kfold/W-model_best_outerfold_{outer_fold}.pt'
 
         # 실제 학습 및 test set AUC 획득
         while True:

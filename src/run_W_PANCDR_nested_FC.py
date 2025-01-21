@@ -5,7 +5,7 @@ import random
 from utils import DataGenerate, DataFeature
 from sklearn.model_selection import StratifiedKFold
 from copy import deepcopy
-from ModelTraining.W_PANCDR import train_W_PANCDR
+from ModelTraining.W_PANCDR_FC import train_W_PANCDR
 import os
 # 가령, 이런 식으로 하이퍼파라미터 후보 리스트를 정의합니다.
 nz_ls = [100, 128, 256]
@@ -15,7 +15,7 @@ lr_critic_ls = [1, 0.1, 0.01] # lr_critic도 존재한다고 가정
 lam_ls = [1, 0.1, 0.01]
 batch_size_ls = [[128, 14], [256, 28]]
 
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 device = torch.device('cuda')
@@ -128,7 +128,8 @@ def train_W_PANCDR_nested(
             # 4) Inner 5-fold CV로 trial_params 평가
             #------------------------------
             auc_scores = []
-            for inner_train_idx, inner_val_idx in inner_skf.split(X_drug_feat_train, Y_train):
+            for inner_fold, (inner_train_idx, inner_val_idx) in enumerate(inner_skf.split(X_drug_feat_train, Y_train)):
+                print(f"\n[Inner Fold {inner_fold}] Start")
                 # inner train/val 분할
                 X_drug_feat_inner_train = X_drug_feat_train[inner_train_idx]
                 X_drug_adj_inner_train  = X_drug_adj_train[inner_train_idx]
@@ -198,10 +199,16 @@ def train_W_PANCDR_nested(
             Y_test_t
         ]
 
-        final_model = DeepCDR(outer_train_data, outer_test_data)
+        final_model = train_W_PANCDR(outer_train_data, outer_test_data)
         
         # weight 저장 경로 설정 (예시)
-        weight_path = f'../checkpoint/VAE/kfold/W-model_best_outerfold_{outer_fold}.pt'
+        weight_path = f'../checkpoint/FC/kfold/W-model_best_outerfold_{outer_fold}.pt'
+        dir_path = os.path.dirname(weight_path)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+            print(f"Directory '{dir_path}' created.")
+        else:
+            print(f"Directory '{dir_path}' already exists.")
 
         # 실제 학습 및 test set AUC 획득
         while True:
@@ -306,3 +313,23 @@ if __name__ == "__main__":
 
     # 결과 확인
     print(result_df)
+    result_save_path = os.path.join(dir_path, 'results.csv')
+
+    weight_path = f'../checkpoint/FC/kfold/W-model_best_outerfold_{outer_fold}.pt'
+
+    # 상위 디렉토리 추출
+    dir_path = os.path.dirname(weight_path)
+
+    # 디렉토리가 없으면 생성
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+        print(f"Directory '{dir_path}' created.")
+    else:
+        print(f"Directory '{dir_path}' already exists.")
+
+    # 결과 데이터프레임 저장 경로 설정
+    result_save_path = os.path.join(dir_path, 'FC_results.csv')
+
+    # 결과 데이터프레임을 CSV 파일로 저장
+    result_df.to_csv(result_save_path, index=False)
+    print(f"Results saved to '{result_save_path}'")

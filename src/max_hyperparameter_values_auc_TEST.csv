@@ -1,0 +1,2 @@
+fold,metric,value,nz,d_dim,lr,lr_critic,lam,batch_size
+0,auc_val,0.8399222161252045,384,128,0.0001,0.1,1.0,"(128, 14)"

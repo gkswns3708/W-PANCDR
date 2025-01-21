@@ -142,7 +142,7 @@ class FE(nn.Module):
         return self.fc(self.encoder(x))
 
 
-class Encoder(nn.Module):
+class Variational_Encoder(nn.Module):
     def __init__(self, n_input, nz, device, n_hidden=256):
         super(Encoder, self).__init__()
         self.nz = nz
@@ -178,6 +178,24 @@ class Encoder(nn.Module):
         eps = torch.FloatTensor(std.size()).normal_().to(self.device)
 
         return eps * std + mu
+
+
+class Encoder_FC(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super(Encoder_FC, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, input_dim // 2),
+            nn.ReLU(),
+            nn.Linear(input_dim // 2, input_dim // 4),
+            nn.ReLU(),
+            nn.Linear(input_dim // 4, output_dim),
+            nn.ReLU()
+        )
+    
+    def forward(self, x):
+        output = self.encoder(x)
+        return output
+
 
     
 class Decoder(nn.Module):

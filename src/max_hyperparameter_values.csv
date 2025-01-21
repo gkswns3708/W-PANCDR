@@ -1,0 +1,31 @@
+fold,hyperparameters,hyperparameter_value,metric,value
+0,TX_drug_adj_data_test,cuda:0,auc_val,0.7022802845900226
+0,TX_drug_feat_data_test,cuda:0,auc_val,0.7022802845900226
+0,TX_gexpr_data_test,cuda:0,auc_val,0.7022802845900226
+0,TY_test,cuda:0,auc_val,0.7022802845900226
+0,batch_size,"[128, 14]",auc_val,0.7022802845900226
+0,d_dim,256,auc_val,0.7022802845900226
+0,lam,1,auc_val,0.7022802845900226
+0,lr,0.001,auc_val,0.7022802845900226
+0,lr_adv,0.001,auc_val,0.7022802845900226
+0,nz,256,auc_val,0.7022802845900226
+1,TX_drug_adj_data_test,cuda:0,auc_val,0.7139554660680452
+1,TX_drug_feat_data_test,cuda:0,auc_val,0.7139554660680452
+1,TX_gexpr_data_test,cuda:0,auc_val,0.7139554660680452
+1,TY_test,cuda:0,auc_val,0.7139554660680452
+1,batch_size,"[128, 14]",auc_val,0.7139554660680452
+1,d_dim,100,auc_val,0.7139554660680452
+1,lam,0.01,auc_val,0.7139554660680452
+1,lr,0.0001,auc_val,0.7139554660680452
+1,lr_adv,0.0001,auc_val,0.7139554660680452
+1,nz,256,auc_val,0.7139554660680452
+2,TX_drug_adj_data_test,cuda:0,auc_val,0.6790052780977083
+2,TX_drug_feat_data_test,cuda:0,auc_val,0.6790052780977083
+2,TX_gexpr_data_test,cuda:0,auc_val,0.6790052780977083
+2,TY_test,cuda:0,auc_val,0.6790052780977083
+2,batch_size,"[128, 14]",auc_val,0.6790052780977083
+2,d_dim,100,auc_val,0.6790052780977083
+2,lam,0.01,auc_val,0.6790052780977083
+2,lr,0.0001,auc_val,0.6790052780977083
+2,lr_adv,0.0001,auc_val,0.6790052780977083
+2,nz,128,auc_val,0.6790052780977083

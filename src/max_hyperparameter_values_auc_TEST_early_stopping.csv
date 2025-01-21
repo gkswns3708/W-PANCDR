@@ -1,0 +1,2 @@
+fold,epoch,metric,value,nz,d_dim,lr,lr_critic,lam,batch_size
+0,9,auc_TEST,0.6783616727534024,100,256,0.001,0.1,0.01,"(256, 28)"
