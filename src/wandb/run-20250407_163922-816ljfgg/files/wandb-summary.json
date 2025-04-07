@@ -1,1 +1,0 @@
-{"val_recall":0,"val_precision":0,"test_recall":0,"epoch":17,"test_auc":0.5,"val_acc":0.885511251480458,"test_f1":0,"_runtime":171.290243332,"test_precision":0,"val_f1":0,"_step":17,"val_auc":0.5,"loss_val":-135475.515625,"_wandb":{"runtime":171},"_timestamp":1.7440441340397282e+09,"test_acc":0.8829276958607213}
