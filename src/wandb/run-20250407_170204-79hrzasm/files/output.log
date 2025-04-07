@@ -1,0 +1,21 @@
+Hyperparameters:
+nz: 128
+d_dim: 128
+lr: 0.0001
+lr_critic: 0.0001
+lam: 0.01
+batch_size: [128, 14]
+device: cuda
+TX_drug_feat_data_test : cuda:0
+TX_drug_adj_data_test  : cuda:0
+TX_gexpr_data_test     : cuda:0
+TY_test                : cuda:0
+Epoch:   0%|▊                                                                                                                                                                                             | 4/1000 [00:13<54:33,  3.29s/it]
+Epoch 0 - VAL: AUC: 0.6094, ACC: 0.7687, Precision: 0.2115, Recall: 0.3741, F1: 0.2702
+Epoch 0 - TEST: AUC: 0.6216, ACC: 0.7834, Precision: 0.2400, Recall: 0.3923, F1: 0.2978
+Epoch 1 - VAL: AUC: 0.6322, ACC: 0.7505, Precision: 0.2131, Recall: 0.4379, F1: 0.2867
+Epoch 1 - TEST: AUC: 0.6549, ACC: 0.7444, Precision: 0.2211, Recall: 0.4689, F1: 0.3005
+Epoch 2 - VAL: AUC: 0.6522, ACC: 0.6909, Precision: 0.1987, Recall: 0.5603, F1: 0.2933
+Epoch 2 - TEST: AUC: 0.6689, ACC: 0.7617, Precision: 0.2408, Recall: 0.4810, F1: 0.3209
+Epoch 3 - VAL: AUC: 0.6798, ACC: 0.7540, Precision: 0.2332, Recall: 0.5017, F1: 0.3184
+Epoch 3 - TEST: AUC: 0.6857, ACC: 0.7514, Precision: 0.2373, Recall: 0.5076, F1: 0.3234

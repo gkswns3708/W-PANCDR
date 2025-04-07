@@ -1,0 +1,16 @@
+{"time":"2025-04-07T15:53:54.823772278Z","level":"INFO","msg":"stream: starting","core version":"0.19.9","symlink path":"/mnt/W-PANCDR/src/wandb/run-20250407_155353-hutva3lv/logs/debug-core.log"}
+{"time":"2025-04-07T15:53:55.287905778Z","level":"INFO","msg":"created new stream","id":"hutva3lv"}
+{"time":"2025-04-07T15:53:55.287932348Z","level":"INFO","msg":"stream: started","id":"hutva3lv"}
+{"time":"2025-04-07T15:53:55.287941415Z","level":"INFO","msg":"writer: Do: started","stream_id":"hutva3lv"}
+{"time":"2025-04-07T15:53:55.287971873Z","level":"INFO","msg":"handler: started","stream_id":"hutva3lv"}
+{"time":"2025-04-07T15:53:55.287989536Z","level":"INFO","msg":"sender: started","stream_id":"hutva3lv"}
+{"time":"2025-04-07T15:53:55.579139855Z","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-04-07T15:55:53.453621566Z","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-04-07T15:55:53.453652675Z","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-04-07T15:55:54.454965073Z","level":"INFO","msg":"handler: operation stats","stats":{"operations":[{"desc":"updating run config","runtime_seconds":1.001612987}],"total_operations":1}}
+{"time":"2025-04-07T15:55:58.852539032Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-04-07T15:55:59.292055908Z","level":"INFO","msg":"stream: closing","id":"hutva3lv"}
+{"time":"2025-04-07T15:55:59.292070195Z","level":"INFO","msg":"handler: closed","stream_id":"hutva3lv"}
+{"time":"2025-04-07T15:55:59.292077869Z","level":"INFO","msg":"writer: Close: closed","stream_id":"hutva3lv"}
+{"time":"2025-04-07T15:55:59.292082799Z","level":"INFO","msg":"sender: closed","stream_id":"hutva3lv"}
+{"time":"2025-04-07T15:55:59.292137131Z","level":"INFO","msg":"stream: closed","id":"hutva3lv"}

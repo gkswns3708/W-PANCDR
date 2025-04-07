@@ -1,0 +1,16 @@
+{"time":"2025-04-07T16:25:08.075566261Z","level":"INFO","msg":"stream: starting","core version":"0.19.9","symlink path":"/mnt/W-PANCDR/src/wandb/run-20250407_162508-bd85hog4/logs/debug-core.log"}
+{"time":"2025-04-07T16:25:08.535923198Z","level":"INFO","msg":"created new stream","id":"bd85hog4"}
+{"time":"2025-04-07T16:25:08.535948365Z","level":"INFO","msg":"stream: started","id":"bd85hog4"}
+{"time":"2025-04-07T16:25:08.535995545Z","level":"INFO","msg":"handler: started","stream_id":"bd85hog4"}
+{"time":"2025-04-07T16:25:08.536010763Z","level":"INFO","msg":"writer: Do: started","stream_id":"bd85hog4"}
+{"time":"2025-04-07T16:25:08.536085314Z","level":"INFO","msg":"sender: started","stream_id":"bd85hog4"}
+{"time":"2025-04-07T16:25:09.001648658Z","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-04-07T16:26:39.399541243Z","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-04-07T16:26:39.399594514Z","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-04-07T16:26:40.360682558Z","level":"INFO","msg":"handler: operation stats","stats":{"operations":[{"desc":"uploading history steps 21-24, console lines 55-62","runtime_seconds":0.554188507}],"total_operations":1}}
+{"time":"2025-04-07T16:26:42.016046125Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-04-07T16:26:46.413476852Z","level":"INFO","msg":"stream: closing","id":"bd85hog4"}
+{"time":"2025-04-07T16:26:46.413490288Z","level":"INFO","msg":"handler: closed","stream_id":"bd85hog4"}
+{"time":"2025-04-07T16:26:46.41350739Z","level":"INFO","msg":"writer: Close: closed","stream_id":"bd85hog4"}
+{"time":"2025-04-07T16:26:46.413516467Z","level":"INFO","msg":"sender: closed","stream_id":"bd85hog4"}
+{"time":"2025-04-07T16:26:46.413573646Z","level":"INFO","msg":"stream: closed","id":"bd85hog4"}

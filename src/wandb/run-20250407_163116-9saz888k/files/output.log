@@ -1,0 +1,69 @@
+Hyperparameters:
+nz: 128
+d_dim: 256
+lr: 0.001
+lr_critic: 0.0001
+lam: 0.1
+batch_size: [256, 28]
+device: cuda
+TX_drug_feat_data_test : cuda:0
+TX_drug_adj_data_test  : cuda:0
+TX_gexpr_data_test     : cuda:0
+TY_test                : cuda:0
+Epoch:   2%|██▊                                                                                                                                                                                         | 15/1000 [00:31<34:28,  2.10s/it]
+Epoch 0 - VAL: AUC: 0.5702, ACC: 0.6121, Precision: 0.1515, Recall: 0.5190, F1: 0.2345
+Epoch 0 - TEST: AUC: 0.5750, ACC: 0.6528, Precision: 0.1570, Recall: 0.4499, F1: 0.2328
+Epoch 1 - VAL: AUC: 0.5579, ACC: 0.7323, Precision: 0.1614, Recall: 0.3190, F1: 0.2144
+Epoch 1 - TEST: AUC: 0.5623, ACC: 0.6872, Precision: 0.1509, Recall: 0.3612, F1: 0.2128
+Epoch 2 - VAL: AUC: 0.5382, ACC: 0.6402, Precision: 0.1372, Recall: 0.4052, F1: 0.2050
+Epoch 2 - TEST: AUC: 0.5461, ACC: 0.5415, Precision: 0.1364, Recall: 0.5470, F1: 0.2184
+Epoch 3 - VAL: AUC: 0.5614, ACC: 0.6196, Precision: 0.1472, Recall: 0.4845, F1: 0.2258
+Epoch 3 - TEST: AUC: 0.5774, ACC: 0.5735, Precision: 0.1439, Recall: 0.5341, F1: 0.2268
+Epoch 4 - VAL: AUC: 0.5392, ACC: 0.6176, Precision: 0.1385, Recall: 0.4483, F1: 0.2116
+Epoch 4 - TEST: AUC: 0.5589, ACC: 0.5333, Precision: 0.1392, Recall: 0.5759, F1: 0.2242
+Epoch 5 - VAL: AUC: 0.5669, ACC: 0.8360, Precision: 0.2475, Recall: 0.2121, F1: 0.2284
+Epoch 5 - TEST: AUC: 0.5754, ACC: 0.7436, Precision: 0.1714, Recall: 0.3103, F1: 0.2208
+Epoch 6 - VAL: AUC: 0.6001, ACC: 0.7426, Precision: 0.1768, Recall: 0.3414, F1: 0.2329
+Epoch 6 - TEST: AUC: 0.5868, ACC: 0.7039, Precision: 0.1649, Recall: 0.3763, F1: 0.2294
+Epoch 7 - VAL: AUC: 0.5975, ACC: 0.7712, Precision: 0.1930, Recall: 0.3138, F1: 0.2390
+Epoch 7 - TEST: AUC: 0.5897, ACC: 0.6259, Precision: 0.1537, Recall: 0.4871, F1: 0.2336
+Epoch 8 - VAL: AUC: 0.5851, ACC: 0.7606, Precision: 0.1813, Recall: 0.3103, F1: 0.2289
+Epoch 8 - TEST: AUC: 0.5698, ACC: 0.7525, Precision: 0.1764, Recall: 0.3035, F1: 0.2231
+Epoch 9 - VAL: AUC: 0.5882, ACC: 0.6210, Precision: 0.1521, Recall: 0.5052, F1: 0.2338
+Epoch 9 - TEST: AUC: 0.5817, ACC: 0.8588, Precision: 0.3090, Recall: 0.1669, F1: 0.2167
+Epoch 10 - VAL: AUC: 0.5926, ACC: 0.7795, Precision: 0.2013, Recall: 0.3121, F1: 0.2448
+Epoch 10 - TEST: AUC: 0.5932, ACC: 0.6504, Precision: 0.1584, Recall: 0.4605, F1: 0.2357
+Epoch 11 - VAL: AUC: 0.6013, ACC: 0.8496, Precision: 0.2987, Recall: 0.2328, F1: 0.2616
+Epoch 11 - TEST: AUC: 0.5868, ACC: 0.5793, Precision: 0.1473, Recall: 0.5417, F1: 0.2317
+Epoch 12 - VAL: AUC: 0.6110, ACC: 0.7975, Precision: 0.2170, Recall: 0.2948, F1: 0.2500
+Epoch 12 - TEST: AUC: 0.5983, ACC: 0.6679, Precision: 0.1612, Recall: 0.4370, F1: 0.2355
+Epoch 13 - VAL: AUC: 0.6106, ACC: 0.4781, Precision: 0.1429, Recall: 0.7121, F1: 0.2380
+Epoch 13 - TEST: AUC: 0.5962, ACC: 0.6065, Precision: 0.1556, Recall: 0.5334, F1: 0.2409
+Epoch 14 - VAL: AUC: 0.5973, ACC: 0.8050, Precision: 0.2221, Recall: 0.2810, F1: 0.2481
+Epoch 14 - TEST: AUC: 0.5790, ACC: 0.7918, Precision: 0.1935, Recall: 0.2458, F1: 0.2166
+Epoch 15 - VAL: AUC: 0.6096, ACC: 0.6885, Precision: 0.1721, Recall: 0.4517, F1: 0.2493
+Epoch 15 - TEST: AUC: 0.5867, ACC: 0.6969, Precision: 0.1659, Recall: 0.3945, F1: 0.2336
+Epoch 16 - VAL: AUC: 0.6074, ACC: 0.6180, Precision: 0.1545, Recall: 0.5224, F1: 0.2385
+Epoch 16 - TEST: AUC: 0.6001, ACC: 0.6181, Precision: 0.1576, Recall: 0.5205, F1: 0.2419
+Epoch 17 - VAL: AUC: 0.6189, ACC: 0.6680, Precision: 0.1673, Recall: 0.4776, F1: 0.2478
+Epoch 17 - TEST: AUC: 0.5969, ACC: 0.6670, Precision: 0.1625, Recall: 0.4439, F1: 0.2379
+Epoch 18 - VAL: AUC: 0.6128, ACC: 0.8417, Precision: 0.2832, Recall: 0.2500, F1: 0.2656
+Epoch 18 - TEST: AUC: 0.6044, ACC: 0.6504, Precision: 0.1625, Recall: 0.4780, F1: 0.2425
+Epoch 19 - VAL: AUC: 0.6066, ACC: 0.7278, Precision: 0.1852, Recall: 0.4052, F1: 0.2542
+Epoch 19 - TEST: AUC: 0.5955, ACC: 0.6712, Precision: 0.1663, Recall: 0.4507, F1: 0.2429
+Epoch 20 - VAL: AUC: 0.6059, ACC: 0.7846, Precision: 0.2132, Recall: 0.3276, F1: 0.2583
+Epoch 20 - TEST: AUC: 0.5834, ACC: 0.7773, Precision: 0.1978, Recall: 0.2951, F1: 0.2368
+Epoch 21 - VAL: AUC: 0.6176, ACC: 0.7049, Precision: 0.1771, Recall: 0.4328, F1: 0.2514
+Epoch 21 - TEST: AUC: 0.6025, ACC: 0.6255, Precision: 0.1573, Recall: 0.5046, F1: 0.2398
+Epoch 22 - VAL: AUC: 0.6022, ACC: 0.5855, Precision: 0.1504, Recall: 0.5638, F1: 0.2375
+Epoch 22 - TEST: AUC: 0.6029, ACC: 0.6407, Precision: 0.1584, Recall: 0.4795, F1: 0.2381
+Epoch 23 - VAL: AUC: 0.6056, ACC: 0.6338, Precision: 0.1611, Recall: 0.5224, F1: 0.2462
+Epoch 23 - TEST: AUC: 0.5946, ACC: 0.7518, Precision: 0.1870, Recall: 0.3346, F1: 0.2399
+Epoch 24 - VAL: AUC: 0.5982, ACC: 0.6536, Precision: 0.1582, Recall: 0.4690, F1: 0.2366
+Epoch 24 - TEST: AUC: 0.5918, ACC: 0.7452, Precision: 0.1828, Recall: 0.3392, F1: 0.2376
+Epoch 25 - VAL: AUC: 0.6112, ACC: 0.8668, Precision: 0.3547, Recall: 0.2000, F1: 0.2558
+Epoch 25 - TEST: AUC: 0.6074, ACC: 0.5791, Precision: 0.1513, Recall: 0.5630, F1: 0.2385
+Epoch 26 - VAL: AUC: 0.5986, ACC: 0.7929, Precision: 0.2080, Recall: 0.2879, F1: 0.2415
+Epoch 26 - TEST: AUC: 0.5745, ACC: 0.7714, Precision: 0.1799, Recall: 0.2678, F1: 0.2152
+Epoch 27 - VAL: AUC: 0.6024, ACC: 0.7898, Precision: 0.2184, Recall: 0.3241, F1: 0.2609
+Epoch 27 - TEST: AUC: 0.5976, ACC: 0.6543, Precision: 0.1593, Recall: 0.4568, F1: 0.2363

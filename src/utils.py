@@ -86,6 +86,7 @@ def CalculateGraphFeat(feat_mat,adj_list):
 
 def MetadataGenerate(Drug_info_file,Cell_line_info_file,Drug_feature_file,Gene_expression_file,P_Gene_expression_file,Cancer_response_exp_file,is_regr=False):
     #drug_id --> pubchem_id
+    print("GDSC Dataset, Loading drug info...")
     reader = csv.reader(open(Drug_info_file,'r'))
     rows = [item for item in reader]
     drugid2pubchemid = {item[-1]:item[-1] for item in rows if item[-1].isdigit()}
@@ -164,6 +165,7 @@ def FeatureExtract(data_idx,drug_feature,gexpr_feature):
 
 def T_MetadataGenerate(T_Drug_info_file,T_Patient_info_file,T_Drug_feature_file,T_Gene_expression_file,T_Cancer_response_exp_file):
         #drug_id --> pubchem_id
+    print("TCGA Dataset, Loading drug info...")
     reader = csv.reader(open(T_Drug_info_file,'r'))
     rows = [item for item in reader]
     drugid2pubchemid = {item[-1]:item[-1] for item in rows if item[-1].isdigit()}
@@ -317,3 +319,41 @@ def umap_img(model, gexpr, t_gexpr, path):
     
     plt.show()
     plt.close()
+
+def generate_random_params(n_params=20):
+    # Hyperparameter candidates
+    nz_ls = [100, 128, 256]
+    h_dims_ls = [100, 128, 256]
+    lr_ls = [0.001, 0.0001]
+    lr_adv_ls = [0.001, 0.0001]
+    lam_ls = [1, 0.1, 0.01]
+    batch_size_ls = [[128, 14], [256, 28]]
+
+    random_params = []
+    for _ in range(n_params):
+        params = {
+            'nz': random.choice(nz_ls),
+            'd_dim': random.choice(h_dims_ls),
+            'lr': random.choice(lr_ls),
+            'lr_adv': random.choice(lr_adv_ls),
+            'lam': random.choice(lam_ls),
+            'batch_size': random.choice(batch_size_ls)
+        }
+        random_params.append(params)
+    
+    return random_params
+
+def create_random_search_params_df(n_folds=10, n_params_per_fold=20, output_file="random_search_params.csv"):
+    folds_params = {}
+    for fold in range(n_folds):
+        params_list = generate_random_params(n_params_per_fold)
+        folds_params[f"Fold_{fold}"] = params_list
+    
+    # Convert to DataFrame
+    params_df = pd.DataFrame([
+        [fold, params] for fold, params_list in folds_params.items() for params in params_list
+    ], columns=['Fold', 'Best_params'])
+    
+    # Save to CSV
+    params_df.to_csv(output_file, index=False)
+    return params_df

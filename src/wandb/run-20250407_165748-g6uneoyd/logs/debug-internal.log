@@ -1,0 +1,16 @@
+{"time":"2025-04-07T16:57:48.442254682Z","level":"INFO","msg":"stream: starting","core version":"0.19.9","symlink path":"/mnt/W-PANCDR/src/wandb/run-20250407_165748-g6uneoyd/logs/debug-core.log"}
+{"time":"2025-04-07T16:57:48.916686011Z","level":"INFO","msg":"created new stream","id":"g6uneoyd"}
+{"time":"2025-04-07T16:57:48.916727991Z","level":"INFO","msg":"stream: started","id":"g6uneoyd"}
+{"time":"2025-04-07T16:57:48.916737959Z","level":"INFO","msg":"writer: Do: started","stream_id":"g6uneoyd"}
+{"time":"2025-04-07T16:57:48.91674871Z","level":"INFO","msg":"sender: started","stream_id":"g6uneoyd"}
+{"time":"2025-04-07T16:57:48.916799666Z","level":"INFO","msg":"handler: started","stream_id":"g6uneoyd"}
+{"time":"2025-04-07T16:57:49.22501138Z","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-04-07T16:59:59.787745372Z","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-04-07T16:59:59.787837135Z","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-04-07T17:00:00.748753756Z","level":"INFO","msg":"handler: operation stats","stats":{"operations":[{"desc":"uploading config.yaml","runtime_seconds":0.218837764,"progress":"560B/560B"}],"total_operations":1}}
+{"time":"2025-04-07T17:00:00.842409848Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-04-07T17:00:01.286651097Z","level":"INFO","msg":"stream: closing","id":"g6uneoyd"}
+{"time":"2025-04-07T17:00:01.286666296Z","level":"INFO","msg":"handler: closed","stream_id":"g6uneoyd"}
+{"time":"2025-04-07T17:00:01.286675493Z","level":"INFO","msg":"writer: Close: closed","stream_id":"g6uneoyd"}
+{"time":"2025-04-07T17:00:01.286680533Z","level":"INFO","msg":"sender: closed","stream_id":"g6uneoyd"}
+{"time":"2025-04-07T17:00:01.286761005Z","level":"INFO","msg":"stream: closed","id":"g6uneoyd"}

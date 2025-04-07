@@ -144,7 +144,7 @@ class FE(nn.Module):
 
 class Variational_Encoder(nn.Module):
     def __init__(self, n_input, nz, device, n_hidden=256):
-        super(Encoder, self).__init__()
+        super(Variational_Encoder, self).__init__()
         self.nz = nz
         self.n_input = n_input
         self.n_hidden = n_hidden

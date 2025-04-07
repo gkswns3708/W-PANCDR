@@ -1,0 +1,68 @@
+Hyperparameters:
+nz: 128
+d_dim: 128
+lr: 0.0001
+lr_critic: 0.0001
+lam: 0.01
+batch_size: [128, 14]
+device: cuda
+TX_drug_feat_data_test : cuda:0
+TX_drug_adj_data_test  : cuda:0
+TX_gexpr_data_test     : cuda:0
+TY_test                : cuda:0
+Epoch:   2%|██▊                                                                                                                                                                                        | 15/1000 [02:20<2:33:59,  9.38s/it]
+Traceback (most recent call last):                                                                                                                                                                                                         
+Epoch 0 - VAL: AUC: 0.6449, ACC: 0.6976, Precision: 0.1921, Recall: 0.5121, F1: 0.2794
+Epoch 0 - TEST: AUC: 0.6779, ACC: 0.6869, Precision: 0.2042, Recall: 0.5781, F1: 0.3018
+Epoch 1 - VAL: AUC: 0.6961, ACC: 0.7345, Precision: 0.2308, Recall: 0.5655, F1: 0.3278
+Epoch 1 - TEST: AUC: 0.7093, ACC: 0.7398, Precision: 0.2431, Recall: 0.5781, F1: 0.3422
+Epoch 2 - VAL: AUC: 0.7097, ACC: 0.7304, Precision: 0.2337, Recall: 0.5948, F1: 0.3356
+Epoch 2 - TEST: AUC: 0.7218, ACC: 0.7741, Precision: 0.2707, Recall: 0.5486, F1: 0.3625
+Epoch 3 - VAL: AUC: 0.7322, ACC: 0.6717, Precision: 0.2124, Recall: 0.6897, F1: 0.3248
+Epoch 3 - TEST: AUC: 0.7396, ACC: 0.7670, Precision: 0.2672, Recall: 0.5683, F1: 0.3635
+Epoch 4 - VAL: AUC: 0.7395, ACC: 0.6856, Precision: 0.2178, Recall: 0.6741, F1: 0.3293
+Epoch 4 - TEST: AUC: 0.7392, ACC: 0.7596, Precision: 0.2627, Recall: 0.5827, F1: 0.3621
+Epoch 5 - VAL: AUC: 0.7437, ACC: 0.7564, Precision: 0.2578, Recall: 0.6000, F1: 0.3606
+Epoch 5 - TEST: AUC: 0.7510, ACC: 0.7292, Precision: 0.2473, Recall: 0.6426, F1: 0.3572
+Epoch 6 - VAL: AUC: 0.7611, ACC: 0.7144, Precision: 0.2371, Recall: 0.6741, F1: 0.3508
+Epoch 6 - TEST: AUC: 0.7552, ACC: 0.7072, Precision: 0.2356, Recall: 0.6684, F1: 0.3484
+Epoch 7 - VAL: AUC: 0.7631, ACC: 0.6994, Precision: 0.2304, Recall: 0.6948, F1: 0.3461
+Epoch 7 - TEST: AUC: 0.7616, ACC: 0.7508, Precision: 0.2618, Recall: 0.6206, F1: 0.3683
+Epoch 8 - VAL: AUC: 0.7692, ACC: 0.7051, Precision: 0.2352, Recall: 0.7000, F1: 0.3521
+Epoch 8 - TEST: AUC: 0.7648, ACC: 0.7275, Precision: 0.2486, Recall: 0.6563, F1: 0.3606
+Epoch 9 - VAL: AUC: 0.7558, ACC: 0.6840, Precision: 0.2212, Recall: 0.6983, F1: 0.3360
+Epoch 9 - TEST: AUC: 0.7607, ACC: 0.7035, Precision: 0.2355, Recall: 0.6821, F1: 0.3501
+Epoch 10 - VAL: AUC: 0.7725, ACC: 0.6678, Precision: 0.2196, Recall: 0.7448, F1: 0.3392
+Epoch 10 - TEST: AUC: 0.7728, ACC: 0.6967, Precision: 0.2345, Recall: 0.7026, F1: 0.3517
+Epoch 11 - VAL: AUC: 0.7735, ACC: 0.6402, Precision: 0.2097, Recall: 0.7741, F1: 0.3300
+Epoch 11 - TEST: AUC: 0.7742, ACC: 0.6847, Precision: 0.2317, Recall: 0.7314, F1: 0.3520
+Epoch 12 - VAL: AUC: 0.7840, ACC: 0.6885, Precision: 0.2314, Recall: 0.7414, F1: 0.3527
+Epoch 12 - TEST: AUC: 0.7901, ACC: 0.7488, Precision: 0.2709, Recall: 0.6775, F1: 0.3871
+Epoch 13 - VAL: AUC: 0.7840, ACC: 0.6842, Precision: 0.2293, Recall: 0.7448, F1: 0.3506
+Epoch 13 - TEST: AUC: 0.7832, ACC: 0.6930, Precision: 0.2384, Recall: 0.7390, F1: 0.3605
+Epoch 14 - VAL: AUC: 0.7877, ACC: 0.6611, Precision: 0.2220, Recall: 0.7828, F1: 0.3459
+Epoch 14 - TEST: AUC: 0.7900, ACC: 0.7178, Precision: 0.2539, Recall: 0.7276, F1: 0.3764
+  File "run_W_PANCDR_nested.py", line 83, in <module>
+    auc_test_df = train_W_PANCDR_nested(n_outer_splits,data,best_params_file)
+  File "/mnt/W-PANCDR/src/ModelTraining/W_PANCDR.py", line 274, in train_W_PANCDR_nested
+    auc_TEST, current_epoch = model.train(current_params, weight_path=f'../checkpoint/GDSC_kfold/model_best_outerfold_{outer_fold}_{i}.pt')
+  File "/mnt/W-PANCDR/src/ModelTraining/W_PANCDR.py", line 135, in train
+    critic_loss.backward()
+  File "/usr/local/lib/python3.8/dist-packages/torch/_tensor.py", line 450, in backward
+    torch.autograd.backward(
+  File "/usr/local/lib/python3.8/dist-packages/torch/autograd/__init__.py", line 197, in backward
+    Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+KeyboardInterrupt
+Error in atexit._run_exitfuncs:
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.8/dist-packages/wandb/sdk/lib/service_connection.py", line 94, in teardown_atexit
+    conn.teardown(hooks.exit_code)
+  File "/usr/local/lib/python3.8/dist-packages/wandb/sdk/lib/service_connection.py", line 226, in teardown
+    self._router.join()
+  File "/usr/local/lib/python3.8/dist-packages/wandb/sdk/interface/router.py", line 75, in join
+    self._thread.join()
+  File "/usr/lib/python3.8/threading.py", line 1011, in join
+    self._wait_for_tstate_lock()
+  File "/usr/lib/python3.8/threading.py", line 1027, in _wait_for_tstate_lock
+    elif lock.acquire(block, timeout):
+KeyboardInterrupt

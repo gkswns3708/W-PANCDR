@@ -1,0 +1,9 @@
+{"time":"2025-04-07T16:57:15.993671826Z","level":"INFO","msg":"stream: starting","core version":"0.19.9","symlink path":"/mnt/W-PANCDR/src/wandb/run-20250407_165715-hfsvo5di/logs/debug-core.log"}
+{"time":"2025-04-07T16:57:16.471776138Z","level":"INFO","msg":"created new stream","id":"hfsvo5di"}
+{"time":"2025-04-07T16:57:16.471817076Z","level":"INFO","msg":"stream: started","id":"hfsvo5di"}
+{"time":"2025-04-07T16:57:16.471847363Z","level":"INFO","msg":"writer: Do: started","stream_id":"hfsvo5di"}
+{"time":"2025-04-07T16:57:16.471878602Z","level":"INFO","msg":"sender: started","stream_id":"hfsvo5di"}
+{"time":"2025-04-07T16:57:16.471906134Z","level":"INFO","msg":"handler: started","stream_id":"hfsvo5di"}
+{"time":"2025-04-07T16:57:16.807069961Z","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-04-07T16:57:32.806646166Z","level":"ERROR","msg":"HTTP error","status":404,"method":"POST","url":"https://api.wandb.ai/files/hj_ai/W-PANCDR_5Critic_training/hfsvo5di/file_stream"}
+{"time":"2025-04-07T16:57:32.806741356Z","level":"ERROR+4","msg":"filestream: fatal error: filestream: failed to upload: 404 Not Found path=files/hj_ai/W-PANCDR_5Critic_training/hfsvo5di/file_stream: {\"error\":\"project hj_ai/W-PANCDR_5Critic_training not found while streaming file\"}"}

@@ -1,0 +1,17 @@
+2025-04-07 16:02:57,133 INFO    MainThread:855737 [wandb_init.py:setup_run_log_directory():662] Logging user logs to /mnt/W-PANCDR/src/wandb/run-20250407_160257-o8cb8gvq/logs/debug.log
+2025-04-07 16:02:57,133 INFO    MainThread:855737 [wandb_init.py:setup_run_log_directory():663] Logging internal logs to /mnt/W-PANCDR/src/wandb/run-20250407_160257-o8cb8gvq/logs/debug-internal.log
+2025-04-07 16:02:57,133 INFO    MainThread:855737 [wandb_init.py:init():781] calling init triggers
+2025-04-07 16:02:57,133 INFO    MainThread:855737 [wandb_init.py:init():786] wandb.init called with sweep_config: {}
+config: {'nz': 256, 'd_dim': 128, 'lr': 0.0001, 'lr_adv': 0.001, 'lam': 0.1, 'batch_size': [256, 28], '_wandb': {}}
+2025-04-07 16:02:57,133 INFO    MainThread:855737 [wandb_init.py:init():809] starting backend
+2025-04-07 16:02:57,133 INFO    MainThread:855737 [wandb_init.py:init():813] sending inform_init request
+2025-04-07 16:02:57,134 INFO    MainThread:855737 [backend.py:_multiprocessing_setup():101] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2025-04-07 16:02:57,134 INFO    MainThread:855737 [wandb_init.py:init():823] backend started and connected
+2025-04-07 16:02:57,135 INFO    MainThread:855737 [wandb_init.py:init():915] updated telemetry
+2025-04-07 16:02:57,464 INFO    MainThread:855737 [wandb_init.py:init():939] communicating run to backend with 90.0 second timeout
+2025-04-07 16:02:57,944 INFO    MainThread:855737 [wandb_init.py:init():1014] starting run threads in backend
+2025-04-07 16:02:58,033 INFO    MainThread:855737 [wandb_run.py:_console_start():2454] atexit reg
+2025-04-07 16:02:58,034 INFO    MainThread:855737 [wandb_run.py:_redirect():2306] redirect: wrap_raw
+2025-04-07 16:02:58,035 INFO    MainThread:855737 [wandb_run.py:_redirect():2371] Wrapping output streams.
+2025-04-07 16:02:58,035 INFO    MainThread:855737 [wandb_run.py:_redirect():2394] Redirects installed.
+2025-04-07 16:02:58,035 INFO    MainThread:855737 [wandb_init.py:init():1056] run started, returning control to user process

@@ -1,0 +1,68 @@
+Hyperparameters:
+nz: 128
+d_dim: 256
+lr: 0.001
+lr_critic: 0.0001
+lam: 0.1
+batch_size: [256, 28]
+device: cuda
+TX_drug_feat_data_test : cuda:0
+TX_drug_adj_data_test  : cuda:0
+TX_gexpr_data_test     : cuda:0
+TY_test                : cuda:0
+Epoch:   1%|█▊                                                                                                                                                                                        | 10/1000 [01:03<1:44:07,  6.31s/it]
+Traceback (most recent call last):                                                                                                                                                                                                        
+Epoch 0 - VAL: AUC: 0.5923, ACC: 0.7325, Precision: 0.1893, Recall: 0.4069, F1: 0.2583
+Epoch 0 - TEST: AUC: 0.5949, ACC: 0.7452, Precision: 0.2005, Recall: 0.3938, F1: 0.2657
+Epoch 1 - VAL: AUC: 0.6170, ACC: 0.7156, Precision: 0.1966, Recall: 0.4810, F1: 0.2791
+Epoch 1 - TEST: AUC: 0.6278, ACC: 0.7790, Precision: 0.2367, Recall: 0.3991, F1: 0.2972
+Epoch 2 - VAL: AUC: 0.5849, ACC: 0.7529, Precision: 0.1800, Recall: 0.3259, F1: 0.2319
+Epoch 2 - TEST: AUC: 0.5764, ACC: 0.6403, Precision: 0.1487, Recall: 0.4385, F1: 0.2221
+Epoch 3 - VAL: AUC: 0.5954, ACC: 0.8020, Precision: 0.2034, Recall: 0.2500, F1: 0.2243
+Epoch 3 - TEST: AUC: 0.5686, ACC: 0.7896, Precision: 0.1950, Recall: 0.2549, F1: 0.2210
+Epoch 4 - VAL: AUC: 0.5948, ACC: 0.8231, Precision: 0.2367, Recall: 0.2448, F1: 0.2407
+Epoch 4 - TEST: AUC: 0.5918, ACC: 0.6832, Precision: 0.1644, Recall: 0.4181, F1: 0.2360
+Epoch 5 - VAL: AUC: 0.6137, ACC: 0.6275, Precision: 0.1637, Recall: 0.5483, F1: 0.2521
+Epoch 5 - TEST: AUC: 0.5949, ACC: 0.6239, Precision: 0.1538, Recall: 0.4917, F1: 0.2344
+Epoch 6 - VAL: AUC: 0.6117, ACC: 0.5738, Precision: 0.1517, Recall: 0.5931, F1: 0.2417
+Epoch 6 - TEST: AUC: 0.6018, ACC: 0.7236, Precision: 0.1796, Recall: 0.3816, F1: 0.2443
+Epoch 7 - VAL: AUC: 0.6068, ACC: 0.7450, Precision: 0.1877, Recall: 0.3690, F1: 0.2488
+Epoch 7 - TEST: AUC: 0.5987, ACC: 0.7800, Precision: 0.2021, Recall: 0.2982, F1: 0.2409
+Epoch 8 - VAL: AUC: 0.6201, ACC: 0.7872, Precision: 0.2111, Recall: 0.3138, F1: 0.2524
+Epoch 8 - TEST: AUC: 0.6083, ACC: 0.7085, Precision: 0.1744, Recall: 0.3991, F1: 0.2427
+Epoch 9 - VAL: AUC: 0.6083, ACC: 0.4816, Precision: 0.1418, Recall: 0.6983, F1: 0.2357
+Epoch 9 - TEST: AUC: 0.6118, ACC: 0.6009, Precision: 0.1571, Recall: 0.5516, F1: 0.2445
+  File "run_W_PANCDR_nested.py", line 83, in <module>
+    auc_test_df = train_W_PANCDR_nested(n_outer_splits,data,best_params_file)
+  File "/mnt/W-PANCDR/src/ModelTraining/W_PANCDR.py", line 273, in train_W_PANCDR_nested
+    while True:
+  File "/mnt/W-PANCDR/src/ModelTraining/W_PANCDR.py", line 111, in train
+    # 배치별 학습 (원래 방식: 각 배치마다 Critic 업데이트 후 Generator 업데이트)
+  File "/usr/local/lib/python3.8/dist-packages/tqdm/std.py", line 1195, in __iter__
+    for obj in iterable:
+  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/dataloader.py", line 630, in __next__
+    data = self._next_data()
+  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/dataloader.py", line 673, in _next_data
+    data = self._dataset_fetcher.fetch(index)  # may raise StopIteration
+  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/_utils/fetch.py", line 58, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/_utils/fetch.py", line 58, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/dataset.py", line 193, in __getitem__
+    return tuple(tensor[index] for tensor in self.tensors)
+  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/dataset.py", line 193, in <genexpr>
+    return tuple(tensor[index] for tensor in self.tensors)
+KeyboardInterrupt
+Error in atexit._run_exitfuncs:
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.8/dist-packages/wandb/sdk/lib/service_connection.py", line 94, in teardown_atexit
+    conn.teardown(hooks.exit_code)
+  File "/usr/local/lib/python3.8/dist-packages/wandb/sdk/lib/service_connection.py", line 226, in teardown
+    self._router.join()
+  File "/usr/local/lib/python3.8/dist-packages/wandb/sdk/interface/router.py", line 75, in join
+    self._thread.join()
+  File "/usr/lib/python3.8/threading.py", line 1011, in join
+    self._wait_for_tstate_lock()
+  File "/usr/lib/python3.8/threading.py", line 1027, in _wait_for_tstate_lock
+    elif lock.acquire(block, timeout):
+KeyboardInterrupt
