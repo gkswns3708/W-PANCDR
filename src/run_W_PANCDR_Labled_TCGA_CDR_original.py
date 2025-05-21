@@ -1,14 +1,14 @@
 import random,os
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 import torch
 import numpy as np
 from sklearn import metrics
 import pandas as pd
 from utils import DataGenerate, DataFeature
-from ModelTraining.model_training import train_PANCDR
+from ModelTraining.model_training import train_W_PANCDR
 device = torch.device('cuda')
-print(device)
+
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 random.seed(0)
@@ -36,7 +36,7 @@ T_Gene_expression_file = '%s/TCGA/TCGA_expr_z_702.csv'%DPATH
 
 if __name__ == '__main__':
     drug_feature,gexpr_feature, t_gexpr_feature, data_idx = DataGenerate(Drug_info_file,Cell_line_info_file,Drug_feature_file,Gene_expression_file,P_Gene_expression_file,Cancer_response_exp_file)
-    T_drug_feature, T_gexpr_feature, T_data_idx = DataGenerate(T_Drug_info_file,T_Patient_info_file,T_Drug_feature_file,T_Gene_expression_file,None,T_Cancer_response_exp_file,dataset="TCGA")
+    T_drug_feature, T_gexpr_feature, T_data_idx = DataGenerate(T_Drug_info_file,T_Patient_info_file,T_Drug_feature_file,T_Gene_expression_file,None,T_Cancer_response_exp_file,dataset="TCGA") # -> Labled TCGA
     TX_drug_data_test,TX_gexpr_data_test,TY_test,Tcancer_type_test_list = DataFeature(T_data_idx,T_drug_feature,T_gexpr_feature,dataset="TCGA")
 
     TX_drug_feat_data_test = [item[0] for item in TX_drug_data_test]
@@ -61,44 +61,16 @@ if __name__ == '__main__':
     
     df = pd.read_csv("tuned_hyperparameters/TCGA_CV_params.csv")
     best_params = eval(df.loc[(df["Model"]=="WANCDR") & (df["Classification"]=="T"),"Best_params"].values[0])
-    csv_path = 'PANCDR_TCGA_100train_results.csv'
+    csv_path = 'WANCDR_TCGA_100train_results.csv'
     results = []
-
-    # ➤ 1. 기존 CSV 불러오기 (있으면)
-    if os.path.exists(csv_path):
-        result_df = pd.read_csv(csv_path)
-        done_iters = set(result_df['Iteration'].dropna().astype(int).tolist())
-    else:
-        result_df = pd.DataFrame(columns=["Iteration", "Accuracy", "AUC", "F1", "Recall", "Precision"])
-        done_iters = set()
-
-    # ➤ 2. 반복 시작
+    print("Training......")
     for iter in range(100):
-        if iter in done_iters:
-            print(f"Skipping iteration {iter}, already recorded.")
-            continue
-
-        weight_path = '../checkpoint/TCGA_PANCDR/%d_model.pt'%iter
-        model = train_PANCDR(train_data,test_data, outer_fold=iter, project="PANCDR-TCGA")
-        TCGA_metric, _ = model.train(best_params, weight_path)
-
-        # ➤ 결과 dict + iteration 번호
-        TCGA_metric["Iteration"] = iter
-        print(f"iter {iter} - AUC: {TCGA_metric['AUC']:.4f}")
-
-        # ➤ 결과 추가 및 저장
-        result_df = pd.concat([result_df, pd.DataFrame([TCGA_metric])], ignore_index=True)
-        result_df.to_csv(csv_path, index=False)
-    
-    # results = []
-    # print("Training......")
-    # for iter in range(100):
-    #     weight_path = '../checkpoint/TCGA_PANCDR/%d_model.pt'%iter
-    #     model = train_PANCDR(train_data,test_data, outer_fold=iter, project="PANCDR-TCGA")
-    #     auc_TCGA, _ = model.train(best_params, weight_path)
-    #     print('iter %d - roc-TCGA: %.4f'%(iter,auc_TCGA))
-    #     results.append(auc_TCGA)
-    
+        weight_path = '../checkpoint/TCGA_WANCDR/%d_model.pt'%iter
+        model = train_W_PANCDR(train_data,test_data, outer_fold=iter,project="WANCDR-TCGA")
+        TCGA_metric, _ = model.train(best_params, weight_path) # ex: TCGA_metric =  {"Accuracy": 0, "AUC": 0, "F1": 0, "Recall": 0, "Precision": 0}
+        print('iter %d - roc-TCGA: %.4f'%(iter,TCGA_metric['AUC']))
+        results.append(TCGA_metric)
+    print(results)    
     # result_df = pd.DataFrame(results, columns=['TCGA AUC'])
     # result_df.loc['mean',] = result_df.mean().values
     # result_df.to_csv('WANCDR_TCGA_100train_results.csv')

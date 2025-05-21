@@ -91,6 +91,7 @@ class train_W_PANCDR():
         loss_fn = torch.nn.BCELoss()
 
         current_epoch = -1
+        best_metric = {"Accuracy": 0, "AUC": 0, "F1": 0, "Recall": 0, "Precision": 0}
         for epoch in tqdm(range(1000), desc="Epoch", leave=True):
             total_critic_loss = 0.0
             total_gen_loss = 0.0
@@ -173,6 +174,11 @@ class train_W_PANCDR():
             # Early stopping on test_auc
             if test_auc > best_auc:
                 best_auc = test_auc
+                best_metric['Accuracy'] = test_acc
+                best_metric['AUC'] = test_auc
+                best_metric['F1'] = test_f1
+                best_metric['Recall'] = test_rec
+                best_metric['Precision'] = test_prec
                 wait = 0
                 torch.save({
                     'EN_model': EN_model.state_dict(),
@@ -187,7 +193,7 @@ class train_W_PANCDR():
             current_epoch = epoch
 
         run.finish()
-        return best_auc, current_epoch
+        return best_metric, current_epoch
 
     def predict(self, data, params, weight_path):
         nz, d_dim, _, _, _, _ = params.values()
@@ -328,6 +334,7 @@ def train_W_PANCDR_full_cv(n_splits, data, best_params_file,
             model = train_W_PANCDR(train_data, test_data, outer_fold=fold, project='W-PANCDR_fullCV')
 
             while True:
+                # TODO: 여기 auc_TEST가 아니라, TCGA_Metric로 바꿔야 함
                 auc_TEST, end_epoch = model.train(current_params, weight_path=f'../checkpoint/GDSC_fullCV_WANCDR/model_{fold}_{i}.pt')
                 if auc_TEST != -1:
                     break
@@ -420,15 +427,17 @@ class train_PANCDR():
         wandb.watch(ADV_model, log="all", log_freq=50)
 
         current_epoch, wait, best_auc_TEST = 0, 0, 0
-
-        for epoch in range(1000):
+        best_metric = {"Accuracy": 0, "AUC": 0, "F1": 0, "Recall": 0, "Precision": 0}
+        for epoch in tqdm(range(1000), desc="Epoch", leave=True):
             EN_model.train(); GCN_model.train(); ADV_model.train()
 
             total_adv, total_cdr = 0.0, 0.0
             train_y_true_list, train_y_pred_list = [], []
 
             # ─── Batch-level Training & Logging ───
-            for i, (DataG, (t_gexpr,)) in enumerate(zip(GDSC_Loader, cycle(E_TEST_Loader))):
+            for DataG, (t_gexpr,) in tqdm(zip(GDSC_Loader, cycle(E_TEST_Loader)),
+                                        desc=f"Batch (Epoch {epoch})",
+                                        leave=False, total=len(GDSC_Loader)):
                 drug_feat, drug_adj, gexpr, y_true = DataG
                 drug_feat = drug_feat.to(device)
                 drug_adj  = drug_adj.to(device)
@@ -470,7 +479,6 @@ class train_PANCDR():
                 optimizer.step()
 
                 # Batch-level W&B 로깅
-                step = epoch * len(GDSC_Loader) + i
                 wandb.log({
                     "train/cdr_loss": cdr_loss.item(),
                     "train/adv_loss": adv_loss_.item()
@@ -535,6 +543,11 @@ class train_PANCDR():
             # ─── Early Stopping on test_auc ───
             if test_auc > best_auc_TEST:
                 best_auc_TEST = test_auc
+                best_metric['Accuracy'] = test_acc
+                best_metric['AUC'] = test_auc
+                best_metric['F1'] = test_f1
+                best_metric['Recall'] = test_rec
+                best_metric['Precision'] = test_prec
                 wait = 0
                 torch.save({
                     "EN_model":  EN_model.state_dict(),
@@ -548,7 +561,7 @@ class train_PANCDR():
             current_epoch = epoch
 
         run.finish()
-        return best_auc_TEST, current_epoch
+        return best_metric, current_epoch
 
 
     def predict(self, data, params, weight_path):
