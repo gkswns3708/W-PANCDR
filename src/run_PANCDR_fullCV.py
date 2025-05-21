@@ -1,12 +1,15 @@
-import torch
 import random,os
-import numpy as np
-from sklearn import metrics
-import pandas as pd
-from utils import DataGenerate, DataFeature
-from ModelTraining.model_training import train_W_PANCDR
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
+import torch
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn import metrics
+import pandas as pd
+israndom=False
+from utils import DataGenerate, DataFeature, create_one_random_search_params_df
+from ModelTraining.model_training import train_PANCDR_full_cv
+
 device = torch.device('cuda')
 
 torch.manual_seed(0)
@@ -34,6 +37,16 @@ T_Drug_feature_file = '%s/TCGA/drug_graph_feat'%DPATH
 T_Cancer_response_exp_file = '%s/TCGA/TCGA_response_new.csv'%DPATH
 T_Gene_expression_file = '%s/TCGA/TCGA_expr_z_702.csv'%DPATH
 
+
+def f1(y_true, y_pred):
+    fpr, tpr, thr = metrics.roc_curve(y_true, y_pred)
+    optimal_idx = np.argmax(tpr-fpr)
+    optimal_thr = thr[optimal_idx]
+    y_pred_ = (y_pred > optimal_thr).astype(int)
+    output = metrics.f1_score(y_true, y_pred_)
+    return output
+
+
 if __name__ == '__main__':
     drug_feature,gexpr_feature, t_gexpr_feature, data_idx = DataGenerate(Drug_info_file,Cell_line_info_file,Drug_feature_file,Gene_expression_file,P_Gene_expression_file,Cancer_response_exp_file)
     T_drug_feature, T_gexpr_feature, T_data_idx = DataGenerate(T_Drug_info_file,T_Patient_info_file,T_Drug_feature_file,T_Gene_expression_file,None,T_Cancer_response_exp_file,dataset="TCGA")
@@ -44,32 +57,24 @@ if __name__ == '__main__':
     TX_drug_feat_data_test = np.array(TX_drug_feat_data_test)#nb_instance * Max_stom * feat_dim
     TX_drug_adj_data_test = np.array(TX_drug_adj_data_test)#nb_instance * Max_stom * Max_stom  
 
-    TX_drug_feat_data_test = torch.FloatTensor(TX_drug_feat_data_test).to(device)
-    TX_drug_adj_data_test = torch.FloatTensor(TX_drug_adj_data_test).to(device)
-    TX_gexpr_data_test = torch.FloatTensor(TX_gexpr_data_test).to(device)
-    TY_test = torch.FloatTensor(TY_test).to(device)
+    TX_drug_feat_data_test = torch.FloatTensor(TX_drug_feat_data_test)
+    TX_drug_adj_data_test = torch.FloatTensor(TX_drug_adj_data_test)
+    TX_gexpr_data_test = torch.FloatTensor(TX_gexpr_data_test)
+    TY_test = torch.FloatTensor(TY_test)
 
     X_drug_data,X_gexpr_data,Y,cancer_type_train_list = DataFeature(data_idx,drug_feature,gexpr_feature)
-    
     X_drug_feat_data = [item[0] for item in X_drug_data]
     X_drug_adj_data = [item[1] for item in X_drug_data]
     X_drug_feat_data = np.array(X_drug_feat_data)
     X_drug_adj_data = np.array(X_drug_adj_data)
 
-    train_data = [X_drug_feat_data,X_drug_adj_data,X_gexpr_data,Y,t_gexpr_feature]
-    test_data = [TX_drug_feat_data_test,TX_drug_adj_data_test,TX_gexpr_data_test,TY_test]
+    data = [X_drug_feat_data,X_drug_adj_data,X_gexpr_data,Y,t_gexpr_feature]
     
-    df = pd.read_csv("tuned_hyperparameters/TCGA_CV_params.csv")
-    best_params = eval(df.loc[(df["Model"]=="WANCDR") & (df["Classification"]=="T"),"Best_params"].values[0])
-    model = train_W_PANCDR(train_data,test_data, project="WANCDR-TCGA")
-    results = []
-    print("Training......")
-    for iter in range(100):
-        weight_path = '../checkpoint/TCGA_WANCDR/%d_model.pt'%iter
-        auc_TCGA, _ = model.train(best_params, weight_path)
-        print('iter %d - roc-TCGA: %.4f'%(iter,auc_TCGA))
-        results.append(auc_TCGA)
-    
-    result_df = pd.DataFrame(results, columns=['TCGA AUC'])
-    result_df.loc['mean',] = result_df.mean().values
-    result_df.to_csv('WANCDR_TCGA_100train_results.csv')
+    n_outer_splits= 5
+    # 랜덤 파라미터 생성 및 저장
+    param_file = "GDSC_5FoldCV_PANCDR_Hyperparams.csv"
+    random_params_df = create_one_random_search_params_df(n_params=20, output_file=param_file, log_file = './logs/GDSC_CV_PANCDR_all.csv', mode='PANCDR')
+    auc_test_df = train_PANCDR_full_cv(n_outer_splits,data,param_file)
+
+    # auc_test_df.to_csv('GDSC_10FoldCV_WANCDR', sep=',')
+

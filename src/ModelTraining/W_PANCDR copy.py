@@ -27,26 +27,25 @@ np.random.seed(0)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-from utils import scores  # utils.py에 정의된 scores 함수 임포트
-import wandb
-
 class train_W_PANCDR():
-    def __init__(self, train_data, test_data, outer_fold=None):
+    def __init__(self, train_data, test_data, outer_fold=None, project=None):
         self.train_data = train_data
         self.test_data = test_data
         self.outer_fold = outer_fold
+        self.project = project
 
     def train(self, params, weight_path='../checkpoint/model.pt'):
-        run_name = f"outer_fold_{self.outer_fold}_nz_{params['nz']}_d_dim_{params['d_dim']}_lr_{params['lr']}_batch_size_{params['batch_size'][0]}_lam_{params['lam']}"
+        run_name = f"outer_fold_{self.outer_fold}_nz_{params['nz']}_d_dim_{params['d_dim']}_lr_{params['lr']}_lr_adv_{params['lr_adv']}_batch_size_{params['batch_size'][0]}_lam_{params['lam']}"
     
         # 각 실험(run)을 새로 시작
         run = wandb.init(
-            project="W-PANCDR_training",
+            project=self.project,
             config=params,
             name=run_name,
             reinit=True
         )
-        
+
+            
         nz, d_dim, lr, lr_critic, lam, batch_size = params.values()
         print("Hyperparameters:")
         print(f"nz: {nz}")
@@ -108,7 +107,14 @@ class train_W_PANCDR():
 
         current_epoch = -1
         for epoch in tqdm(range(1000), desc="Epoch", leave=True):
-            # 배치별 학습 (원래 방식: 각 배치마다 Critic 업데이트 후 Generator 업데이트)
+            total_critic_loss = 0.0
+            total_gen_loss = 0.0
+            num_batches = 0
+            # training metric 저장을 위한 리스트
+            train_y_true_list = []
+            train_y_pred_list = []
+            
+            # 각 배치마다 학습 (원래 방식 그대로)
             for i, data in enumerate(tqdm(zip(GDSC_Loader, cycle(E_TEST_Loader)), desc=f"Batch (Epoch {epoch})", leave=False, total=len(GDSC_Loader))):
                 DataG = data[0]
                 t_gexpr = data[1][0]
@@ -137,18 +143,35 @@ class train_W_PANCDR():
 
                 # Encoder + GCN 업데이트 (Generator 역할)
                 optimizer.zero_grad()
-                # latent 추출 (tuple이면 첫 번째 요소 사용)
+                # latent 추출 (tuple이면 첫번째 요소 사용)
                 F_gexpr = EN_model(gexpr)[0] if isinstance(EN_model(gexpr), (list, tuple)) else EN_model(gexpr)
                 F_t_gexpr = EN_model(t_gexpr)[0] if isinstance(EN_model(t_gexpr), (list, tuple)) else EN_model(t_gexpr)
                 fake_validity_ = Critic_model(F_gexpr)
                 adv_loss = -fake_validity_.mean()
                 y_pred = GCN_model(drug_feat, drug_adj, F_gexpr)
                 cdr_loss = loss_fn(y_pred, y_true)
-                Loss = cdr_loss + lam * adv_loss
-                Loss.backward()
+                gen_loss = cdr_loss + lam * adv_loss
+                gen_loss.backward()
                 optimizer.step()
+                
+                total_critic_loss += critic_loss.item()
+                total_gen_loss += gen_loss.item()
+                num_batches += 1
+                
+                # 학습 중 매 배치의 y_true와 y_pred를 저장 (평가를 위해)
+                train_y_true_list.append(y_true.cpu().detach().numpy().flatten())
+                train_y_pred_list.append(y_pred.cpu().detach().numpy().flatten())
             
-            # Epoch 단위 평가: 전체 Validation 및 Test 데이터를 사용
+            # Epoch마다 평균 training loss 계산
+            avg_critic_loss = total_critic_loss / num_batches
+            avg_gen_loss = total_gen_loss / num_batches
+            
+            # training metric 계산 (전체 training 데이터에 대해)
+            train_y_true = np.concatenate(train_y_true_list)
+            train_y_pred = np.concatenate(train_y_pred_list)
+            train_auc, train_acc, train_precision, train_recall, train_f1 = scores(train_y_true, train_y_pred)
+            
+            # Epoch 단위 평가: 전체 Validation 및 Test 데이터를 이용하여 한 번에 예측
             with torch.no_grad():
                 EN_model.eval()
                 GCN_model.eval()
@@ -166,9 +189,16 @@ class train_W_PANCDR():
                 y_pred_test_np = y_pred_test.cpu().detach().numpy().flatten()
                 test_auc, test_acc, test_precision, test_recall, test_f1 = scores(y_true_test, y_pred_test_np)
 
-                # wandb에 epoch 단위로 로깅
+                # wandb에 epoch 단위로 로깅 (평균 training loss 및 training metric 포함)
                 wandb.log({
                     "epoch": epoch,
+                    "avg_critic_loss": avg_critic_loss,
+                    "avg_gen_loss": avg_gen_loss,
+                    "train_auc": train_auc,
+                    "train_acc": train_acc,
+                    "train_precision": train_precision,
+                    "train_recall": train_recall,
+                    "train_f1": train_f1,
                     "val_auc": val_auc,
                     "val_acc": val_acc,
                     "val_precision": val_precision,
@@ -179,23 +209,41 @@ class train_W_PANCDR():
                     "test_precision": test_precision,
                     "test_recall": test_recall,
                     "test_f1": test_f1,
-                    "loss_val": Loss.item()  # 마지막 배치의 Loss
+                    "loss_val": gen_loss.item()  # 마지막 배치의 Loss (선택 사항)
                 })
                 
-                print(f"Epoch {epoch} - VAL: AUC: {val_auc:.4f}, ACC: {val_acc:.4f}, Precision: {val_precision:.4f}, Recall: {val_recall:.4f}, F1: {val_f1:.4f}")
-                print(f"Epoch {epoch} - TEST: AUC: {test_auc:.4f}, ACC: {test_acc:.4f}, Precision: {test_precision:.4f}, Recall: {test_recall:.4f}, F1: {test_f1:.4f}")
+                # print(f"Epoch {epoch} - TRAIN: AUC: {train_auc:.4f}, ACC: {train_acc:.4f}, Precision: {train_precision:.4f}, Recall: {train_recall:.4f}, F1: {train_f1:.4f}")
+                # print(f"Epoch {epoch} - VAL: AUC: {val_auc:.4f}, ACC: {val_acc:.4f}, Precision: {val_precision:.4f}, Recall: {val_recall:.4f}, F1: {val_f1:.4f}")
+                # print(f"Epoch {epoch} - TEST: AUC: {test_auc:.4f}, ACC: {test_acc:.4f}, Precision: {test_precision:.4f}, Recall: {test_recall:.4f}, F1: {test_f1:.4f}")
             
             if val_auc >= best_auc:
                 wait = 0
                 best_auc = val_auc
-                # torch.save({
-                #     'EN_model': EN_model.state_dict(), 
-                #     'GCN_model': GCN_model.state_dict(), 
-                #     'Critic_model': Critic_model.state_dict()
-                # }, weight_path)
+                torch.save({
+                    'EN_model': EN_model.state_dict(), 
+                    'GCN_model': GCN_model.state_dict(), 
+                    'Critic_model': Critic_model.state_dict()
+                }, weight_path)
+                ret_metric = {
+                    'train_auc': train_auc,
+                    'train_acc': train_acc,
+                    'train_precision': train_precision,
+                    'train_recall': train_recall,
+                    'train_f1': train_f1,
+                    'val_auc': val_auc,
+                    'val_acc': val_acc,
+                    'val_precision': val_precision,
+                    'val_recall': val_recall,
+                    'val_f1': val_f1,
+                    'test_auc': test_auc,
+                    'test_acc': test_acc,
+                    'test_precision': test_precision,
+                    'test_recall': test_recall,
+                    'test_f1': test_f1
+                }
             else:
                 wait += 1
-                if wait >= 10:
+                if wait >= 10: 
                     break
             current_epoch = epoch
         
@@ -221,6 +269,7 @@ class train_W_PANCDR():
             F_gexpr = EN_model(gexpr)[0] if isinstance(EN_model(gexpr), (list, tuple)) else EN_model(gexpr)
             y_pred = GCN_model(drug_feat, drug_adj, F_gexpr)
         return y_pred.cpu()
+
 
 
 
@@ -304,6 +353,75 @@ def train_W_PANCDR_nested(n_outer_splits, data, best_params_file,
     best_params_all_folds.to_csv(best_file, index=False)
 
     return auc_test_df
+
+def train_W_PANCDR_full_cv(n_splits, data, best_params_file, 
+                           result_file='./logs/full_CV/GDSC_results.csv',
+                           param_summary_file='./logs/full_CV/GDSC_param_summary.csv'):
+
+    X_drug_feat_data, X_drug_adj_data, X_gexpr_data, Y, t_gexpr_feature = data
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+
+    param_list = pd.read_csv(best_params_file)['Best_params'].tolist()
+
+    auc_test_df = pd.DataFrame(columns=['Fold', 'Test_AUC', 'params', 'end_epoch'])
+    best_params_all_folds = pd.DataFrame(columns=['Fold', 'Test_AUC', 'params', 'end_epoch'])
+    for i, param_str in enumerate(param_list):
+        for fold, (train_idx, test_idx) in enumerate(cv.split(X_drug_feat_data, Y)):
+            print(f"Fold {fold} - Iteration {i} - Current params: {param_str}")
+            X_drug_feat_train = X_drug_feat_data[train_idx]
+            X_drug_adj_train = X_drug_adj_data[train_idx]
+            X_gexpr_train = X_gexpr_data[train_idx]
+            Y_train = Y[train_idx]
+
+            X_drug_feat_test = X_drug_feat_data[test_idx]
+            X_drug_adj_test = X_drug_adj_data[test_idx]
+            X_gexpr_test = X_gexpr_data[test_idx]
+            Y_test = Y[test_idx]
+
+            X_drug_feat_test = torch.FloatTensor(X_drug_feat_test)
+            X_drug_adj_test = torch.FloatTensor(X_drug_adj_test)
+            X_gexpr_test = torch.FloatTensor(X_gexpr_test)
+            Y_test = torch.FloatTensor(Y_test)
+
+            train_data = [X_drug_feat_train, X_drug_adj_train, X_gexpr_train, Y_train, t_gexpr_feature]
+            test_data = [X_drug_feat_test, X_drug_adj_test, X_gexpr_test, Y_test]
+
+            current_params = eval(param_str)
+            model = train_W_PANCDR(train_data, test_data, outer_fold=fold, project='W-PANCDR_fullCV')
+
+            while True:
+                auc_TEST, end_epoch = model.train(current_params, weight_path=f'../checkpoint/GDSC_fullCV/model_fold_{fold}_{i}.pt')
+                if auc_TEST != -1:
+                    break
+
+            auc_test_df = pd.concat([auc_test_df, pd.DataFrame([[fold, auc_TEST, current_params, end_epoch]],
+                                                            columns=['Fold','Test_AUC', 'Best_params', 'Best_epoch'])])
+            auc_test_df.to_csv(result_file, index=False)
+
+    summary_df = (
+        auc_test_df
+        .groupby("params")["Test_AUC"]
+        .agg(mean="mean", std="std", count="count")
+        .reset_index()
+    )
+
+    # ▶ 전체 Fold 평균 AUC 별도 row 추가 (원하면)
+    overall_row = pd.DataFrame([{
+        "params":             "Mean_AUC_over_all_folds",
+        "mean":               auc_test_df["Test_AUC"].mean(),
+        "std":                auc_test_df["Test_AUC"].std(),
+        "count":              10  # n_splits
+    }])
+    summary_df = pd.concat([summary_df, overall_row], ignore_index=True)
+
+    # ▶ CSV로 저장
+    summary_df.to_csv("./logs/full_CV/GDSC_param_summary.csv", index=False)
+
+    print("✅ Summary-version saved:")
+    print(summary_df)
+
+    return auc_test_df
+
 
 
 def IsNaN(pred):

@@ -9,6 +9,7 @@ import random
 from matplotlib import pyplot as plt
 import umap.umap_ as umap
 import torch
+import json
 from sklearn import metrics
 device = torch.device('cuda')
 
@@ -320,40 +321,135 @@ def umap_img(model, gexpr, t_gexpr, path):
     plt.show()
     plt.close()
 
-def generate_random_params(n_params=20):
-    # Hyperparameter candidates
-    nz_ls = [100, 128, 256]
-    h_dims_ls = [100, 128, 256]
-    lr_ls = [0.001, 0.0001]
-    lr_adv_ls = [0.001, 0.0001]
-    lam_ls = [1, 0.1, 0.01]
-    batch_size_ls = [[128, 14], [256, 28]]
-
-    random_params = []
-    for _ in range(n_params):
-        params = {
-            'nz': random.choice(nz_ls),
-            'd_dim': random.choice(h_dims_ls),
-            'lr': random.choice(lr_ls),
-            'lr_adv': random.choice(lr_adv_ls),
-            'lam': random.choice(lam_ls),
-            'batch_size': random.choice(batch_size_ls)
-        }
-        random_params.append(params)
+def load_past_params(log_file):
+    """실험이 완료된 (즉, AUC가 존재하는) 하이퍼파라미터 조합만 불러온다."""
+    if not os.path.exists(log_file):
+        return set()
     
-    return random_params
+    df = pd.read_csv(log_file)
+    if 'Best_params' not in df.columns or 'Test_AUC' not in df.columns:
+        return set()
 
-def create_random_search_params_df(n_folds=10, n_params_per_fold=20, output_file="random_search_params.csv"):
+    past_params = set()
+    for _, row in df.iterrows():
+        if pd.isna(row['Best_params']) or pd.isna(row['Test_AUC']):
+            continue  # 결과 없는 시도는 무시
+
+        try:
+            p = json.loads(row['Best_params'].replace("'", '"'))  # 작은따옴표 → 큰따옴표
+            param_tuple = (
+                p['nz'], p['d_dim'], p['lr'], p['lr_adv'], p['lam'], tuple(p['batch_size'])
+            )
+            past_params.add(param_tuple)
+        except Exception:
+            continue  # JSON 파싱 에러는 무시
+
+    return past_params
+
+
+def generate_random_params(mode, n_params, existing_params=set()):
+    """기존 조합과 겹치지 않는 새로운 하이퍼파라미터 조합 생성"""
+    if mode == "WANCDR":
+        nz_ls = [100, 128, 256]
+        d_dims_ls = [100, 128, 256]
+        lr_ls = [0.001, 0.0001]
+        lr_adv_ls = [0.001, 0.0001]
+        lam_ls = [0.01, 0.001, 0.0001]
+        batch_size_ls = [[128, 14], [256, 28]]
+
+        random_params = set()
+        attempt_count = 0
+        max_attempts = n_params * 50  # 무한루프 방지
+
+        while len(random_params) < n_params and attempt_count < max_attempts:
+            attempt_count += 1
+            params = (
+                random.choice(nz_ls),
+                random.choice(d_dims_ls),
+                random.choice(lr_ls),
+                random.choice(lr_adv_ls),
+                random.choice(lam_ls),
+                tuple(random.choice(batch_size_ls))
+            )
+            if params not in existing_params and params not in random_params:
+                random_params.add(params)
+
+        # 최종 딕셔너리 포맷으로 변환
+        random_params = [
+            {'nz': p[0], 'd_dim': p[1], 'lr': p[2], 'lr_adv': p[3], 'lam': p[4], 'batch_size': list(p[5])}
+            for p in random_params
+        ]
+        return random_params
+    if mode == "PANCDR":
+        nz_ls = [100, 128, 256]
+        h_dims_ls = [100, 128, 256]
+        lr_ls = [0.001, 0.0001]
+        lr_adv_ls = [0.001, 0.0001]
+        lam_ls = [1, 0.1, 0.01]
+        batch_size_ls = [[128,14],[256,28]]
+
+
+        random_params = set()
+        attempt_count = 0
+        max_attempts = n_params * 50  # 무한루프 방지
+
+        while len(random_params) < n_params and attempt_count < max_attempts:
+            attempt_count += 1
+            params = (
+                random.choice(nz_ls),
+                random.choice(h_dims_ls),
+                random.choice(lr_ls),
+                random.choice(lr_adv_ls),
+                random.choice(lam_ls),
+                tuple(random.choice(batch_size_ls))
+            )
+            if params not in existing_params and params not in random_params:
+                random_params.add(params)
+
+        # 최종 딕셔너리 포맷으로 변환
+        random_params = [
+            {'nz': p[0], 'd_dim': p[1], 'lr': p[2], 'lr_adv': p[3], 'lam': p[4], 'batch_size': list(p[5])}
+            for p in random_params
+        ]
+        return random_params
+
+
+def create_different_random_search_params_df(n_folds=10, n_params_per_fold=20,
+                                   output_file="random_search_params.csv",
+                                   log_file="./logs/GDSC_CV_all.csv"):
+    past_params = load_past_params(log_file)
     folds_params = {}
+
     for fold in range(n_folds):
-        params_list = generate_random_params(n_params_per_fold)
-        folds_params[f"Fold_{fold}"] = params_list
-    
-    # Convert to DataFrame
+        fold_params = generate_random_params(n_params_per_fold, existing_params=past_params)
+        for param in fold_params:
+            param_tuple = (
+                param['nz'], param['d_dim'], param['lr'], param['lr_adv'], param['lam'], tuple(param['batch_size'])
+            )
+            past_params.add(param_tuple)  # 다음 fold에서도 중복 방지
+        folds_params[f"Fold_{fold}"] = fold_params
+
+    # DataFrame 변환
     params_df = pd.DataFrame([
         [fold, params] for fold, params_list in folds_params.items() for params in params_list
     ], columns=['Fold', 'Best_params'])
-    
-    # Save to CSV
+
+    params_df.to_csv(output_file, index=False)
+    return params_df
+
+def create_one_random_search_params_df(n_params=20,
+                                   output_file="random_search_params.csv",
+                                   log_file="./logs/GDSC_CV_all.csv",
+                                   mode='WANCDR'):
+    past_params = load_past_params(log_file)
+
+    # 모든 Fold에서 동일하게 쓸 단일 세트 생성
+    params_list = generate_random_params(mode, n_params, existing_params=past_params)
+
+    # Fold 정보 없이 저장
+    params_df = pd.DataFrame([
+        [params] for params in params_list
+    ], columns=['Best_params'])
+
     params_df.to_csv(output_file, index=False)
     return params_df

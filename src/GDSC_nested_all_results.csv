@@ -1,2 +1,0 @@
-Fold,Iteration,Test_AUC,Best_params,Best_epoch
-Fold_0,0,0.7654467014530277,"{'nz': 128, 'd_dim': 128, 'lr': 0.001, 'lr_adv': 0.0001, 'lam': 0.01, 'batch_size': [256, 28]}",46

@@ -4,8 +4,8 @@ import numpy as np
 from sklearn import metrics
 import pandas as pd
 from utils import DataGenerate, DataFeature
-from ModelTraining.model_training import train_W_PANCDR
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+from ModelTraining.model_training import train_PANCDR
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 device = torch.device('cuda')
 
@@ -61,11 +61,11 @@ if __name__ == '__main__':
     
     df = pd.read_csv("tuned_hyperparameters/TCGA_CV_params.csv")
     best_params = eval(df.loc[(df["Model"]=="WANCDR") & (df["Classification"]=="T"),"Best_params"].values[0])
-    model = train_W_PANCDR(train_data,test_data, project="WANCDR-TCGA")
+    model = train_PANCDR(train_data,test_data, project="PANCDR-TCGA")
     results = []
     print("Training......")
     for iter in range(100):
-        weight_path = '../checkpoint/TCGA_WANCDR/%d_model.pt'%iter
+        weight_path = '../checkpoint/TCGA_PANCDR/%d_model.pt'%iter
         auc_TCGA, _ = model.train(best_params, weight_path)
         print('iter %d - roc-TCGA: %.4f'%(iter,auc_TCGA))
         results.append(auc_TCGA)

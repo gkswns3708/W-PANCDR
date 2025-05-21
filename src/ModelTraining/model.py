@@ -179,6 +179,42 @@ class Variational_Encoder(nn.Module):
 
         return eps * std + mu
 
+class Encoder(nn.Module):
+    def __init__(self, n_input, nz, device, n_hidden=256):
+        super(Encoder, self).__init__()
+        self.nz = nz
+        self.n_input = n_input
+        self.n_hidden = n_hidden
+        self.device = device
+        
+        encoder = [nn.Linear(self.n_input,self.n_hidden),
+                   nn.BatchNorm1d(self.n_hidden),
+                   nn.ReLU()]
+        n_layers = 3
+        for i in range(n_layers):
+            encoder += [nn.Linear(self.n_hidden,self.n_hidden),
+                        nn.BatchNorm1d(self.n_hidden),
+                        nn.ReLU()]
+        encoder += [nn.Linear(self.n_hidden,self.n_hidden)]
+        self.encoder = nn.Sequential(*encoder)
+        
+        self.fc1 = nn.Linear(self.n_hidden, self.nz)
+        self.fc2 = nn.Linear(self.n_hidden, self.nz)
+        
+    def forward(self, x):
+        mu, logvar = self.encode(x)
+        z = self.reparametrize(mu, logvar)
+        return z, mu, logvar
+    
+    def encode(self, x):
+        h = self.encoder(x)
+        return self.fc1(h), self.fc2(h)
+    
+    def reparametrize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.FloatTensor(std.size()).normal_().to(self.device)
+
+        return eps * std + mu
 
 class Encoder_FC(nn.Module):
     def __init__(self, input_dim, output_dim):

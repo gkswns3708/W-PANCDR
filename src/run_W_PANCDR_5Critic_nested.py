@@ -9,7 +9,7 @@ from sklearn import metrics
 import pandas as pd
 israndom=False
 from utils import DataGenerate, DataFeature, create_random_search_params_df
-from ModelTraining.W_PANCDR_5Critic import train_W_PANCDR_nested
+from ModelTraining.W_PANCDR_5Critic import train_W_PANCDR_full_cv
 
 device = torch.device('cuda')
 
@@ -80,10 +80,10 @@ if __name__ == '__main__':
     
     n_outer_splits= 10
     # 랜덤 파라미터 생성 및 저장
-    random_params_df = create_random_search_params_df(n_folds=10, n_params_per_fold=20, output_file="Nested_random_search_params.csv")
+    random_params_df = create_random_search_params_df(n_folds=10, n_params_per_fold=20, output_file="5Critic_Nested_random_search_params.csv")
 
-    best_params_file = "Nested_random_search_params.csv"
-    auc_test_df = train_W_PANCDR_nested(n_outer_splits,data,best_params_file)
+    best_params_file = "5Critic_Nested_random_search_params.csv"
+    auc_test_df = train_W_PANCDR_full_cv(n_outer_splits,data,best_params_file)
 
     auc_test_df.to_csv('GDSC_nested.csv', sep=',')
 
