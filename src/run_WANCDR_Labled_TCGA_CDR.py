@@ -44,11 +44,6 @@ if __name__ == '__main__':
     TX_drug_feat_data_test = np.array(TX_drug_feat_data_test)#nb_instance * Max_stom * feat_dim
     TX_drug_adj_data_test = np.array(TX_drug_adj_data_test)#nb_instance * Max_stom * Max_stom  
 
-    TX_drug_feat_data_test = torch.FloatTensor(TX_drug_feat_data_test).to(device)
-    TX_drug_adj_data_test = torch.FloatTensor(TX_drug_adj_data_test).to(device)
-    TX_gexpr_data_test = torch.FloatTensor(TX_gexpr_data_test).to(device)
-    TY_test = torch.FloatTensor(TY_test).to(device)
-
     X_drug_data,X_gexpr_data,Y,cancer_type_train_list = DataFeature(data_idx,drug_feature,gexpr_feature)
     
     X_drug_feat_data = [item[0] for item in X_drug_data]
@@ -58,7 +53,7 @@ if __name__ == '__main__':
 
     train_data = [X_drug_feat_data,X_drug_adj_data,X_gexpr_data,Y,t_gexpr_feature]
     test_data = [TX_drug_feat_data_test,TX_drug_adj_data_test,TX_gexpr_data_test,TY_test]
-    
+    print(type(TX_drug_feat_data_test), "-type(TX_drug_feat_data_test)")
     df = pd.read_csv("tuned_hyperparameters/TCGA_CV_params.csv")
     best_params = eval(df.loc[(df["Model"]=="WANCDR") & (df["Classification"]=="T"),"Best_params"].values[0])
     csv_path = 'WANCDR_TCGA_100train_results.csv'

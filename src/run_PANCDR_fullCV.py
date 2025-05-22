@@ -76,5 +76,5 @@ if __name__ == '__main__':
     random_params_df = create_one_random_search_params_df(n_params=20, output_file=param_file, log_file = './logs/GDSC_CV_PANCDR_all.csv', mode='PANCDR')
     auc_test_df = train_PANCDR_full_cv(n_outer_splits,data,param_file)
 
-    # auc_test_df.to_csv('GDSC_10FoldCV_WANCDR', sep=',')
+    auc_test_df.to_csv('GDSC_10FoldCV_PANCDR', sep=',')
 
