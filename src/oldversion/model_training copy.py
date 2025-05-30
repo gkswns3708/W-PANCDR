@@ -14,8 +14,9 @@ import itertools
 from tqdm import tqdm
 from itertools import cycle
 
+
 # TODO: Variational Encoder를 추가 혹은 다른 버전의 Encoder를 추가. 현재까지는 FC Layer만 존재
-from utils import scores, create_one_random_search_params_df
+from utils import scores 
 from ModelTraining.model import Encoder_FC, GCN, ADV, gradient_penalty, Critic
 
 # For PANCDR
@@ -28,263 +29,14 @@ np.random.seed(0)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-class train_WANCDR():
-    def __init__(self, train_data, test_data, outer_fold=None, config=None):
+class train_W_PANCDR():
+    def __init__(self, train_data, test_data, outer_fold=None, project=None):
         self.train_data = train_data
         self.test_data = test_data
         self.outer_fold = outer_fold
-        self.config = config
+        self.project = project
 
-    def train(self, config, params, weight_path='../checkpoint/kfold/W_PANCDR_model.pt'):
-        """
-        W-PANCDR 모델을 학습하는 함수입니다.
-        주어진 파라미터에 따라 모델을 학습하고 평가합니다.
-        """
-        if config['test_metric'] == 'Test AUC':
-            return self._train(params, weight_path)
-        elif config['test_metric'] == 'W_distance':
-            return self._Wtrain(params, weight_path)
-        else:
-            raise ValueError("Invalid optimization method specified in config.")
-            
-    def _Wtrain(self, params, weight_path=f'../checkpoint/model.pt'):
-        run_name = f"outer_fold_{self.outer_fold}_nz_{params['nz']}_d_dim_{params['d_dim']}_lr_{params['lr']}_lr_adv_{params['lr_adv']}_lam_{params['lam']}_batch_size_{params['batch_size'][0]}"
-        run = wandb.init(
-            project=self.config['wandb']['project_name'],
-            config=params, # ? 
-            name=run_name,
-            reinit=True
-        )
-
-        nz, d_dim, lr, lr_critic, lam, batch_size = params.values()
-
-        # unpack train/test
-        X_drug_feat_data, X_drug_adj_data, X_gexpr_data, Y, t_gexpr_feature = self.train_data
-        TX_drug_feat_data_test, TX_drug_adj_data_test, TX_gexpr_data_test, TY_test = self.test_data
-
-        # split Unlabeled TCGA into train vs holdout for W-distance
-        TCGA_vals = t_gexpr_feature.T.values
-        X_t_train, X_t_holdout = train_test_split(TCGA_vals, test_size=0.05, random_state=0)
-
-        # split labeled GDSC + small labeled TCGA for standard validation (optional)
-        X_drug_feat_data_train, X_drug_feat_data_val, \
-        X_drug_adj_data_train, X_drug_adj_data_val, \
-        X_gexpr_data_train, X_gexpr_data_val, \
-        Y_train, Y_val = train_test_split(
-            X_drug_feat_data, X_drug_adj_data, X_gexpr_data, Y,
-            test_size=0.05, random_state=0
-        )
-        
-        # Labeled TCGA 데이터
-        TX_drug_feat_data_test, TX_drug_adj_data_test, TX_gexpr_data_test, TY_test = self.test_data
-        
-        X_drug_feat_train = torch.FloatTensor(X_drug_feat_data_train).to(device)
-        X_drug_adj_train  = torch.FloatTensor(X_drug_adj_data_train).to(device)
-        X_gexpr_train     = torch.FloatTensor(X_gexpr_data_train).to(device)
-        X_t_train_tensor  = torch.FloatTensor(X_t_train).to(device)
-        Y_train_tensor    = torch.FloatTensor(Y_train).to(device)
-
-        X_drug_feat_val   = torch.FloatTensor(X_drug_feat_data_val).to(device)
-        X_drug_adj_val    = torch.FloatTensor(X_drug_adj_data_val).to(device)
-        X_gexpr_val       = torch.FloatTensor(X_gexpr_data_val).to(device)
-        Y_val      = torch.FloatTensor(Y_val).to(device)
-
-        X_t_holdout = torch.FloatTensor(X_t_holdout).to(device)
-
-        TX_drug_feat_test = torch.FloatTensor(TX_drug_feat_data_test).to(device)
-        TX_drug_adj_test  = torch.FloatTensor(TX_drug_adj_data_test).to(device)
-        TX_gexpr_test     = torch.FloatTensor(TX_gexpr_data_test).to(device)
-        TY_test    = torch.FloatTensor(TY_test).to(device)
-
-         # DataLoaders
-        GDSC_Dataset = torch.utils.data.TensorDataset(
-            X_drug_feat_train, X_drug_adj_train, X_gexpr_train, Y_train_tensor
-        )
-        GDSC_Loader = torch.utils.data.DataLoader(
-            dataset=GDSC_Dataset, batch_size=batch_size[0], shuffle=True, drop_last=True
-        )
-
-        TCGA_Dataset = torch.utils.data.TensorDataset(X_t_train_tensor)
-        TCGA_Loader  = torch.utils.data.DataLoader(
-            dataset=TCGA_Dataset, batch_size=batch_size[1], shuffle=True, drop_last=True
-        )
-
-        # model init
-        EN_model    = Encoder_FC(X_gexpr_train.shape[1], nz).to(device)
-        GCN_model   = GCN(X_drug_feat_train.shape[2], [256,256,256], h_dims=[d_dim, nz+d_dim], use_dropout=False).to(device)
-        Critic_model= Critic(nz).to(device)
-
-        wandb.watch(EN_model,     log="all", log_freq=50)
-        wandb.watch(GCN_model,    log="all", log_freq=50)
-        wandb.watch(Critic_model, log="all", log_freq=50)
-
-        optimizer        = torch.optim.Adam(
-            itertools.chain(EN_model.parameters(), GCN_model.parameters()), lr=lr
-        )
-        optimizer_critic = torch.optim.Adam(Critic_model.parameters(), lr=lr_critic)
-        loss_fn          = torch.nn.BCELoss()
-
-        best_w_dist = float('inf')
-        best_metric= {
-            'train_w_distance': 0, 'Train AUC': 0, 'Train Accuracy': 0, 'Train F1': 0, 'Train Recall': 0, 'Train Precision': 0,
-            'val_w_distance'  : 0, 'Val AUC'  : 0, 'Val Accuracy'  : 0, 'Val F1'  : 0, 'Val Recall'  : 0, 'Val Precision'  : 0,
-                                 'Test AUC' : 0, 'Test Accuracy' : 0, 'Test F1' : 0, 'Test Recall' : 0, 'Test Precision' : 0
-        }
-        wait = 0
-        current_epoch = -1
-
-        # training loop
-        for epoch in tqdm(range(self.config['train']['max_epochs']), desc="Epoch", leave=True):
-            EN_model.train(); GCN_model.train(); Critic_model.train()
-            total_critic_loss = 0.0
-            total_gen_loss = 0.0
-            num_batches = 0
-            # per-batch adversarial + CDR training
-            train_y_true_list = []
-            train_y_pred_list = []
-            train_w_distance_list = []
-            for (drug_feat, drug_adj, gexpr, y_true), (t_gexpr,) in \
-                tqdm(zip(GDSC_Loader, cycle(TCGA_Loader)), desc=f"Batch (Epoch {epoch})", leave=False, total=len(GDSC_Loader)):
-
-                # critic update
-                optimizer_critic.zero_grad()
-                with torch.no_grad():
-                    F_fake = EN_model(gexpr)
-                    F_real = EN_model(t_gexpr.to(device))
-                D_real = Critic_model(F_real)
-                D_fake = Critic_model(F_fake)
-                loss_critic = (D_fake.mean() - D_real.mean()) \
-                    + gradient_penalty(Critic_model, F_fake, F_real, device, gp_weight=10.0)
-                loss_critic.backward(); optimizer_critic.step()
-
-                # generator + CDR update
-                optimizer.zero_grad()
-                F_fake = EN_model(gexpr)
-                adv_loss = -Critic_model(F_fake).mean()
-                y_pred   = GCN_model(drug_feat, drug_adj, F_fake)
-                cdr_loss = loss_fn(y_pred, y_true.view(-1,1).to(device))
-                total_loss = cdr_loss + lam * adv_loss
-                total_loss.backward(); optimizer.step()
-                
-                total_critic_loss += loss_critic.item()
-                total_gen_loss += total_loss.item()
-                num_batches += 1
-                
-                train_y_true_list.append(y_true.cpu().detach().numpy().flatten())
-                train_y_pred_list.append(y_pred.cpu().detach().numpy().flatten())
-                train_w_distance_list.append((D_real.mean() - D_fake.mean()).item())
-            
-            # # eval W-distance on holdout
-            # with torch.no_grad():
-            #     EN_model.eval(); Critic_model.eval()
-            #     # Calculate W-distance on holdout set
-            #     F_source_all   = EN_model(X_gexpr_train)
-            #     F_holdout_all  = EN_model(X_t_holdout_tensor)
-            #     D_real_holdout = Critic_model(F_holdout_all)
-            #     D_fake_source  = Critic_model(F_source_all)
-            #     y_pred_val = GCN_model(X_drug_feat_val, X_drug_adj_val, F_val)
-            #     y_true_val = Y_val.cpu().detach().numpy().flatten()
-            #     y_pred_val_np = y_pred_val.cpu().detach().numpy().flatten()
-            #     # For metrics
-            #     val_auc, val_acc, val_precision, val_recall, val_f1 = scores(y_true_val, y_pred_val_np)
-            #     w_dist = (D_real_holdout.mean() - D_fake_source.mean()).item()
-            # wandb.log({"w_dist_holdout": w_dist, "epoch": epoch}, step=epoch)
-            avg_critic_loss = total_critic_loss / num_batches
-            avg_gen_loss = total_gen_loss / num_batches
-            
-            train_y_true = np.concatenate(train_y_true_list)
-            train_y_pred = np.concatenate(train_y_pred_list)
-            train_auc, train_acc, train_precision, train_recall, train_f1 = scores(train_y_true, train_y_pred)
-            train_w_distance = np.mean(train_w_distance_list)
-            
-            # TODO: validation/Test metric 추가
-            with torch.no_grad():
-                EN_model.eval()
-                GCN_model.eval()
-                # Validation 평가
-                GDSC_val_latent_vector = EN_model(X_gexpr_val)
-                GDSC_val = Critic_model(GDSC_val_latent_vector)
-                uTCGA_val_latent_vector = EN_model(X_t_holdout)
-                uTCGA_val   = Critic_model(uTCGA_val_latent_vector)
-                val_w_distance = (uTCGA_val.mean() - GDSC_val.mean()).item()
-                  
-                y_pred_val = GCN_model(X_drug_feat_val, X_drug_adj_val, GDSC_val_latent_vector)
-                y_true_val = Y_val.cpu().detach().numpy().flatten()
-                y_pred_val_np = y_pred_val.cpu().detach().numpy().flatten()
-                val_auc, val_acc, val_precision, val_recall, val_f1 = scores(y_true_val, y_pred_val_np)
-                
-                # Test 평가
-                F_test = EN_model(TX_gexpr_test)
-                y_pred_test = GCN_model(TX_drug_feat_test, TX_drug_adj_test, F_test)
-                y_true_test = TY_test.cpu().detach().numpy().flatten()
-                y_pred_test_np = y_pred_test.cpu().detach().numpy().flatten()
-                test_auc, test_acc, test_precision, test_recall, test_f1 = scores(y_true_test, y_pred_test_np)
-
-                # wandb에 epoch 단위로 로깅 (평균 training loss 및 training metric 포함)
-                wandb.log({
-                    "epoch": epoch,
-                    "avg_critic_loss": avg_critic_loss,
-                    "avg_gen_loss": avg_gen_loss,
-                    "avg_train_w_distance": train_w_distance,
-                    "train_auc": train_auc,
-                    "train_acc": train_acc,
-                    "train_precision": train_precision,
-                    "train_recall": train_recall,
-                    "train_f1": train_f1,
-                    "val_auc": val_auc,
-                    "val_acc": val_acc,
-                    "val_precision": val_precision,
-                    "val_recall": val_recall,
-                    "val_f1": val_f1,
-                    "val_w_distance": val_w_distance,
-                    "test_auc": test_auc,
-                    "test_acc": test_acc,
-                    "test_precision": test_precision,
-                    "test_recall": test_recall,
-                    "test_f1": test_f1,
-                })
-            # early stopping on W-distance
-            if val_w_distance < best_w_dist:
-                best_w_dist = val_w_distance
-                wait = 0
-                # save checkpoint
-                torch.save({
-                    'EN_model': EN_model.state_dict(),
-                    'GCN_model': GCN_model.state_dict(),
-                    'Critic_model': Critic_model.state_dict()
-                }, weight_path)
-                current_epoch = epoch
-
-                # also evaluate on test set and record
-                with torch.no_grad():
-                    EN_model.eval(); GCN_model.eval()
-                    # test metrics
-                    F_test = EN_model(TX_gexpr_test)
-                    y_pred_test = GCN_model(TX_drug_feat_test, TX_drug_adj_test, F_test)
-                    y_true_test = TY_test.cpu().numpy().flatten()
-                    y_pred_np   = y_pred_test.cpu().numpy().flatten()
-                    test_auc, test_acc, test_prec, test_rec, test_f1 = scores(y_true_test, y_pred_np)
-                best_metric.update({
-                    'Train AUC': train_auc, 'Train Accuracy': train_acc, 
-                    'Train F1': train_f1, 'Train Recall': train_recall, 'Train Precision': train_precision,
-                    'train_w_distance': train_w_distance,
-                    'Val AUC': val_auc, 'Val Accuracy': val_acc, 
-                    'Val F1': val_f1, 'Val Recall': val_recall, 'Val Precision': val_precision,
-                    'val_w_distance': val_w_distance, 
-                    'Test AUC': test_auc, 'Test Accuracy': test_acc, 
-                    'Test F1': test_f1, 'Test Recall': test_rec, 'Test Precision': test_prec,
-                })
-
-            else:
-                wait += 1
-                if wait >= 10:
-                    print(f"Early stopping at epoch {epoch} due to W-distance not improving.")
-                    break
-
-        run.finish()
-        return best_metric, current_epoch
-    
-    def _train(self, params, weight_path='../checkpoint/model.pt'):
+    def train(self, params, weight_path='../checkpoint/model.pt'):
         run_name = f"outer_fold_{self.outer_fold}_nz_{params['nz']}_d_dim_{params['d_dim']}_lr_{params['lr']}_lr_adv_{params['lr_adv']}_lam_{params['lam']}_batch_size_{params['batch_size'][0]}"
         run = wandb.init(
             project=self.project,
@@ -344,7 +96,8 @@ class train_WANCDR():
         current_epoch = -1
         best_metric = {"Accuracy": 0, "AUC": 0, "F1": 0, "Recall": 0, "Precision": 0}
         for epoch in tqdm(range(1000), desc="Epoch", leave=True):
-            total_critic_loss, total_cdr_loss, total_total_loss = 0.0, 0.0, 0.0
+            total_critic_loss = 0.0
+            total_gen_loss = 0.0
             train_y_true_list, train_y_pred_list = [], []
 
             for DataG, (t_gexpr,) in tqdm(zip(GDSC_Loader, cycle(E_TEST_Loader)),
@@ -374,13 +127,12 @@ class train_WANCDR():
                 adv_loss = -Critic_model(F_gexpr).mean()
                 y_pred = GCN_model(drug_feat, drug_adj, F_gexpr)
                 cdr_loss = loss_fn(y_pred, y_true.view(-1,1))
-                total_loss = cdr_loss + lam * adv_loss
-                total_loss.backward()
+                gen_loss = cdr_loss + lam * adv_loss
+                gen_loss.backward()
                 optimizer.step()
 
                 total_critic_loss += loss_critic.item()
-                total_cdr_loss    += cdr_loss.item()
-                total_total_loss  += total_loss.item()
+                total_gen_loss    += gen_loss.item()
                 train_y_true_list.append(y_true.cpu().numpy().flatten())
                 train_y_pred_list.append(y_pred.cpu().detach().numpy().flatten())
 
@@ -412,12 +164,12 @@ class train_WANCDR():
                 y_true_test = TY_test.cpu().detach().numpy().flatten()
                 y_pred_test_np = y_pred_test.cpu().detach().numpy().flatten()
                 test_auc, test_acc, test_precision, test_recall, test_f1 = scores(y_true_test, y_pred_test_np)
-            
+
+            # wandb 로그 (validation 항목 삭제)
             wandb.log({
                 "epoch": epoch,
                 "avg_critic_loss": total_critic_loss / len(GDSC_Loader),
-                "avg_cdr_loss": total_cdr_loss / len(GDSC_Loader),
-                "avg_total_loss": total_total_loss / len(GDSC_Loader),
+                "avg_gen_loss": total_gen_loss / len(GDSC_Loader),
                 "train_auc": train_auc,
                 "train_acc": train_acc,
                 "train_precision": train_prec,
@@ -436,8 +188,8 @@ class train_WANCDR():
             })
 
             # Early stopping on test_auc
-            if val_auc > best_auc:
-                best_auc = val_auc
+            if test_auc > best_auc:
+                best_auc = test_auc
                 best_metric['Accuracy'] = test_acc
                 best_metric['AUC'] = test_auc
                 best_metric['F1'] = test_f1
@@ -563,53 +315,51 @@ def train_W_PANCDR_nested(n_outer_splits, data, best_params_file,
 
     return auc_test_df
 
-def train_WANCDR_full_cv(train_data,
-                        result_file='./logs/full_CV/GDSC_results.csv',
-                        param_summary_file='./logs/full_CV/GDSC_param_summary.csv',
-                        config=None):
-    
-    # 랜덤 파라미터 생성 및 저장
-    # param_list = pd.read_csv(config['csv']['hp_list_path'])['Best_params'].tolist()
-    
-    param_list = create_one_random_search_params_df(config=config)['Hyperparameters'].tolist()
-    X_drug_feat_data, X_drug_adj_data, X_gexpr_data, Y, t_gexpr_feature = train_data
-    cv = StratifiedKFold(n_splits=config['hp']['n_outer_splits'], shuffle=True, random_state=42)
-    auc_test_df = pd.DataFrame(columns=['Fold', f'metric_{config["test_metric"]}', 'params', 'end_epoch'])
-    for i, param_dict in enumerate(param_list):
-        for fold, (train_idx, val_idx) in enumerate(cv.split(X_drug_feat_data, Y)):
+def train_W_PANCDR_full_cv(n_splits, data, best_params_file, 
+                           result_file='./logs/full_CV/GDSC_results.csv',
+                           param_summary_file='./logs/full_CV/GDSC_param_summary.csv'):
+
+    X_drug_feat_data, X_drug_adj_data, X_gexpr_data, Y, t_gexpr_feature = data
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+
+    param_list = pd.read_csv(best_params_file)['Best_params'].tolist()
+
+    auc_test_df = pd.DataFrame(columns=['Fold', 'Test_AUC', 'params', 'end_epoch'])
+    best_params_all_folds = pd.DataFrame(columns=['Fold', 'Test_AUC', 'params', 'end_epoch'])
+    for i, param_str in enumerate(param_list):
+        for fold, (train_idx, test_idx) in enumerate(cv.split(X_drug_feat_data, Y)):
             X_drug_feat_train = X_drug_feat_data[train_idx]
             X_drug_adj_train = X_drug_adj_data[train_idx]
             X_gexpr_train = X_gexpr_data[train_idx]
             Y_train = Y[train_idx]
 
-            X_drug_feat_val = torch.FloatTensor(X_drug_feat_data[val_idx])
-            X_drug_adj_val = torch.FloatTensor(X_drug_adj_data[val_idx])
-            X_gexpr_val = torch.FloatTensor(X_gexpr_data[val_idx])
-            Y_val = torch.FloatTensor(Y[val_idx])
+            X_drug_feat_test = X_drug_feat_data[test_idx]
+            X_drug_adj_test = X_drug_adj_data[test_idx]
+            X_gexpr_test = X_gexpr_data[test_idx]
+            Y_test = Y[test_idx]
 
-            # X_drug_feat_val = torch.FloatTensor(X_drug_feat_val)
-            # X_drug_adj_val = torch.FloatTensor(X_drug_adj_val)
-            # X_gexpr_val = torch.FloatTensor(X_gexpr_val)
-            # Y_val = torch.FloatTensor(Y_val)
+            X_drug_feat_test = torch.FloatTensor(X_drug_feat_test)
+            X_drug_adj_test = torch.FloatTensor(X_drug_adj_test)
+            X_gexpr_test = torch.FloatTensor(X_gexpr_test)
+            Y_test = torch.FloatTensor(Y_test)
 
             train_data = [X_drug_feat_train, X_drug_adj_train, X_gexpr_train, Y_train, t_gexpr_feature]
-            val_data = [X_drug_feat_val, X_drug_adj_val, X_gexpr_val, Y_val]
-            model = train_WANCDR(train_data, val_data, outer_fold=fold, config=config)
+            test_data = [X_drug_feat_test, X_drug_adj_test, X_gexpr_test, Y_test]
+
+            current_params = eval(param_str)
+            model = train_W_PANCDR(train_data, test_data, outer_fold=fold, project='W-PANCDR_fullCV')
 
             while True:
                 # TODO: 여기 auc_TEST가 아니라, TCGA_Metric로 바꿔야 함
-                auc_TEST, end_epoch = model.train(config, param_dict, weight_path=os.path.join(config['train']['weight_path'], f'model_{fold}_{i}.pt'))
+                auc_TEST, end_epoch = model.train(current_params, weight_path=f'../checkpoint/GDSC_fullCV_WANCDR/model_{fold}_{i}.pt')
                 if auc_TEST != -1:
                     break
-            
-            param_df = pd.DataFrame([param_dict])
-            row_df = pd.DataFrame([[fold, auc_TEST, end_epoch]], columns=['Fold', f'metric_{config["test_metric"]}', 'Best_epoch'])
-            combined_df = pd.concat([row_df, param_df], axis=1)
-            auc_test_df = pd.concat([auc_test_df,combined_df], ignore_index=True)
-            auc_test_df.to_csv(config['csv']['result_file_path'], index=False)
+
+            auc_test_df = pd.concat([auc_test_df, pd.DataFrame([[fold, auc_TEST, current_params, end_epoch]],
+                                                            columns=['Fold','Test_AUC', 'Best_params', 'Best_epoch'])])
+            auc_test_df.to_csv(result_file, index=False)
 
     return auc_test_df
-
 
 
 import wandb
@@ -626,7 +376,8 @@ class train_PANCDR():
         self.outer_fold = outer_fold
         self.project    = project
 
-    def train(self,params,weight_path='../checkpoint/model.pt'):
+    def train(self, params, weight_path='../checkpoint/model.pt'):
+        # 하이퍼파라미터 언팩
         nz, d_dim, lr, lr_adv, lam, batch_size = params.values()
         run_name = f"outer_fold_{self.outer_fold}_nz_{params['nz']}_d_dim_{params['d_dim']}_lr_{params['lr']}_lr_adv_{params['lr_adv']}_lam_{params['lam']}_batch_size_{params['batch_size'][0]}"
 
@@ -638,15 +389,18 @@ class train_PANCDR():
             reinit=True
         )
 
-        X_drug_feat_data,X_drug_adj_data,X_gexpr_data,Y,t_gexpr_feature = self.train_data
-        TX_drug_feat_data_test,TX_drug_adj_data_test,TX_gexpr_data_test,TY_test = self.test_data
-        X_t_train, X_t_val = train_test_split(t_gexpr_feature.T.values, test_size=0.05, random_state=0)
-        X_drug_feat_data_train,X_drug_feat_data_val,X_drug_adj_data_train,X_drug_adj_data_val,X_gexpr_data_train,X_gexpr_data_val,Y_train,Y_val= train_test_split(X_drug_feat_data,X_drug_adj_data,X_gexpr_data,Y,test_size=0.05, random_state=0)
-        
-        X_drug_feat_train = torch.FloatTensor(X_drug_feat_data_train)
-        X_drug_adj_train = torch.FloatTensor(X_drug_adj_data_train)
-        X_gexpr_train = torch.FloatTensor(X_gexpr_data_train)
-        X_t_gexpr_train = torch.FloatTensor(X_t_train)
+        # train/validation/test 데이터 분리
+        X_drug_feat_data, X_drug_adj_data, X_gexpr_data, Y, t_gexpr_feature = self.train_data
+        TX_drug_feat_data_test, TX_drug_adj_data_test, TX_gexpr_data_test, TY_test = self.test_data
+        X_t_train, X_t_val = train_test_split(t_gexpr_feature.T.values, test_size=0.2, random_state=0)
+        X_drug_feat_data_train, X_drug_feat_data_val, X_drug_adj_data_train, X_drug_adj_data_val, \
+            X_gexpr_data_train, X_gexpr_data_val, Y_train, Y_val = train_test_split(
+            X_drug_feat_data, X_drug_adj_data, X_gexpr_data, Y, test_size=0.2, random_state=0)
+
+        X_drug_feat_train = torch.FloatTensor(X_drug_feat_data_train).to(device)
+        X_drug_adj_train = torch.FloatTensor(X_drug_adj_data_train).to(device)
+        X_gexpr_train = torch.FloatTensor(X_gexpr_data_train).to(device)
+        X_t_gexpr_train = torch.FloatTensor(X_t_train).to(device)
         Y_train = torch.FloatTensor(Y_train)
 
         X_drug_feat_val = torch.FloatTensor(X_drug_feat_data_val).to(device)
@@ -654,29 +408,35 @@ class train_PANCDR():
         X_gexpr_val = torch.FloatTensor(X_gexpr_data_val).to(device)
         X_t_gexpr_val = torch.FloatTensor(X_t_val).to(device)
         Y_val = torch.FloatTensor(Y_val).to(device)
-        
-        TX_drug_feat_data_test = torch.FloatTensor(TX_drug_feat_data_test).to(device)
-        TX_drug_adj_data_test  = torch.FloatTensor(TX_drug_adj_data_test).to(device)
-        TX_gexpr_data_test     = torch.FloatTensor(TX_gexpr_data_test).to(device)
-        TY_test                = torch.FloatTensor(TY_test).to(device)
-        
-        GDSC_Dataset = torch.utils.data.TensorDataset(X_drug_feat_train, X_drug_adj_train, X_gexpr_train, Y_train)
-        GDSC_Loader = torch.utils.data.DataLoader(dataset=GDSC_Dataset, batch_size = batch_size[0], shuffle=True, drop_last=True)
-        E_TEST_Dataset = torch.utils.data.TensorDataset(X_t_gexpr_train)
-        E_TEST_Loader = torch.utils.data.DataLoader(dataset=E_TEST_Dataset, batch_size = batch_size[1], shuffle=True, drop_last=True)
 
-        wait, best_auc = 0, 0
-        EN_model = Encoder(X_gexpr_train.shape[1], nz, device)
-        GCN_model = GCN(X_drug_feat_train.shape[2],[256,256,256],h_dims=[d_dim, nz+d_dim],use_dropout=False)
-        ADV_model = ADV(nz)
+        TX_drug_feat_data_test = torch.FloatTensor(TX_drug_feat_data_test).to(device)
+        TX_drug_adj_data_test = torch.FloatTensor(TX_drug_adj_data_test).to(device)
+        TX_gexpr_data_test = torch.FloatTensor(TX_gexpr_data_test).to(device)
+        TY_test = torch.FloatTensor(TY_test).to(device)
+
+                # DataLoader 생성
+        GDSC_Dataset = torch.utils.data.TensorDataset(X_drug_feat_train, X_drug_adj_train, X_gexpr_train, Y_train)
+        GDSC_Loader = torch.utils.data.DataLoader(dataset=GDSC_Dataset, batch_size=batch_size[0], shuffle=True, drop_last=True)
+        E_TEST_Dataset = torch.utils.data.TensorDataset(X_t_gexpr_train)
+        E_TEST_Loader = torch.utils.data.DataLoader(dataset=E_TEST_Dataset, batch_size=batch_size[1], shuffle=True, drop_last=True)
+
+
+        # 모델 초기화
+        EN_model = Encoder_FC(X_gexpr_train.shape[1], nz).to(device)
+        GCN_model = GCN(X_drug_feat_train.shape[2], [256,256,256], h_dims=[d_dim, nz+d_dim], use_dropout=False).to(de)
+        Critic_model = Critic(nz)
         EN_model.to(device)
         GCN_model.to(device)
-        ADV_model.to(device)
+        Critic_model.to(device)
 
-        optimizer = torch.optim.Adam(itertools.chain(EN_model.parameters(),GCN_model.parameters()), lr=lr)
+        # 옵티마이저 & 손실함수
+        optimizer     = torch.optim.Adam(
+            itertools.chain(EN_model.parameters(), GCN_model.parameters()),
+            lr=lr
+        )
         optimizer_adv = torch.optim.Adam(ADV_model.parameters(), lr=lr_adv)
-        loss = torch.nn.BCELoss()
-        
+        loss_fn       = torch.nn.BCELoss()
+
         # W&B 모델 모니터링
         wandb.watch(EN_model,  log="all", log_freq=50)
         wandb.watch(GCN_model, log="all", log_freq=50)
@@ -687,130 +447,136 @@ class train_PANCDR():
         for epoch in tqdm(range(1000), desc="Epoch", leave=True):
             EN_model.train(); GCN_model.train(); ADV_model.train()
 
-            total_adv, total_cdr, total_total_loss = 0.0, 0.0, 0.0
+            total_adv, total_cdr = 0.0, 0.0
             train_y_true_list, train_y_pred_list = [], []
 
             # ─── Batch-level Training & Logging ───
             for DataG, (t_gexpr,) in tqdm(zip(GDSC_Loader, cycle(E_TEST_Loader)),
                                         desc=f"Batch (Epoch {epoch})",
                                         leave=False, total=len(GDSC_Loader)):
-
                 drug_feat, drug_adj, gexpr, y_true = DataG
                 drug_feat = drug_feat.to(device)
                 drug_adj  = drug_adj.to(device)
                 gexpr     = gexpr.to(device)
                 y_true    = y_true.view(-1,1).to(device)
                 t_gexpr   = t_gexpr.to(device)
-                
+
                 # 1) ADV 모델 업데이트
                 optimizer_adv.zero_grad()
-                F_gexpr,_,_ = EN_model(gexpr)
-                F_t_gexpr,_,_ = EN_model(t_gexpr) 
-                F_g_t_gexpr = torch.cat((F_gexpr,F_t_gexpr))
-                z_true = torch.cat((torch.zeros(F_gexpr.shape[0], device=device), torch.ones(F_t_gexpr.shape[0], device=device)))
-                z_true = z_true.view(-1,1)
-                z_pred = ADV_model(F_g_t_gexpr)
-                if IsNaN(z_pred): 
-                    print("IsNAN(z_pred)")
-                    return -1
-                adv_loss = loss(z_pred, z_true)
+                F_gexpr, _, _   = EN_model(gexpr)
+                F_t_gexpr, _, _ = EN_model(t_gexpr)
+                F_cat = torch.cat((F_gexpr, F_t_gexpr))
+                z_true = torch.cat([
+                    torch.zeros(F_gexpr.size(0), device=device),
+                    torch.ones(F_t_gexpr.size(0), device=device)
+                ]).view(-1,1)
+                z_pred = ADV_model(F_cat)
+                adv_loss = loss_fn(z_pred, z_true)
                 adv_loss.backward()
                 optimizer_adv.step()
 
-                # Encoder + GCN 모델 업데이트
+                # 2) Generator(EN+GCN) 업데이트
                 optimizer.zero_grad()
                 g_latents, _, _ = EN_model(gexpr)
                 t_latents, _, _ = EN_model(t_gexpr)
-                F_g_t_latents = torch.cat((g_latents,t_latents))
-                z_true_ = torch.cat((torch.ones(g_latents.shape[0], device=device), torch.zeros(t_latents.shape[0], device=device)))
-                z_true_ = z_true_.view(-1,1)
-                z_pred_ = ADV_model(F_g_t_latents)
-                y_pred = GCN_model(drug_feat,drug_adj,g_latents)
-                if IsNaN(z_pred_) or IsNaN(y_pred): 
-                    print("IsNaN(z_pred_) or IsNaN(y_pred)")
-                    return -1
-                adv_loss_ = loss(z_pred_, z_true_)
-                cdr_loss = loss(y_pred, y_true)
+                F_cat2 = torch.cat((g_latents, t_latents))
+                z_true_ = torch.cat([
+                    torch.ones(g_latents.size(0), device=device),
+                    torch.zeros(t_latents.size(0), device=device)
+                ]).view(-1,1)
+                z_pred_ = ADV_model(F_cat2)
 
-                total_loss = cdr_loss + lam * adv_loss_
-                total_loss.backward()
+                y_pred    = GCN_model(drug_feat, drug_adj, g_latents)
+                adv_loss_ = loss_fn(z_pred_, z_true_)
+                cdr_loss  = loss_fn(y_pred, y_true)
+
+                Loss = cdr_loss + lam * adv_loss_
+                Loss.backward()
                 optimizer.step()
-                
+
+                # Batch-level W&B 로깅
+                wandb.log({
+                    "train/cdr_loss": cdr_loss.item(),
+                    "train/adv_loss": adv_loss_.item()
+                })
 
                 total_adv += adv_loss_.item()
                 total_cdr += cdr_loss.item()
-                total_total_loss += total_loss.item()
 
                 train_y_true_list.append(y_true.cpu().numpy().flatten())
                 train_y_pred_list.append(y_pred.detach().cpu().numpy().flatten())
-            
+
+            # ─── Epoch-level Training Metrics ───
             train_y_true = np.concatenate(train_y_true_list)
             train_y_pred = np.concatenate(train_y_pred_list)
             train_auc, train_acc, train_prec, train_rec, train_f1 = scores(train_y_true, train_y_pred)
 
+            # ─── Test Metrics ───
             with torch.no_grad():
-                EN_model.eval()
-                GCN_model.eval()
-                ADV_model.eval()
+                EN_model.eval(); GCN_model.eval()
+                F_test = EN_model(TX_gexpr_data_test)
+                # Encoder가 tuple 반환 시 첫번째 요소 사용
+                if isinstance(F_test, (list, tuple)):
+                    F_test = F_test[0]
+                y_pred_TEST = GCN_model(
+                    TX_drug_feat_data_test,
+                    TX_drug_adj_data_test,
+                    F_test
+                )
 
-                F_gexpr_val,_,_ = EN_model(X_gexpr_val)
-                F_t_gexpr_val,_,_ = EN_model(X_t_gexpr_val)
+            test_y_true = TY_test.cpu().numpy().flatten()
+            test_y_pred = y_pred_TEST.cpu().numpy().flatten()
+            test_auc, test_acc, test_prec, test_rec, test_f1 = scores(test_y_true, test_y_pred)
 
-                F_g_t_gexpr_val = torch.cat((F_gexpr_val, F_t_gexpr_val))
-                z_pred_val = ADV_model(F_g_t_gexpr_val)
-                y_pred_val = GCN_model(X_drug_feat_val, X_drug_adj_val, F_gexpr_val)
-                y_true_val = Y_val.cpu().detach().numpy().flatten()
-                y_pred_val_np = y_pred_val.cpu().detach().numpy().flatten()
-                val_auc, val_acc, val_precision, val_recall, val_f1 = scores(y_true_val, y_pred_val_np)
-                
-                F_TEST_gexpr,_,_ = EN_model(TX_gexpr_data_test)
-                y_pred_test = GCN_model(TX_drug_feat_data_test, TX_drug_adj_data_test, F_TEST_gexpr)
-                y_true_test = TY_test.cpu().detach().numpy().flatten()
-                y_pred_test_np = y_pred_test.cpu().detach().numpy().flatten()
-                test_auc, test_acc, test_precision, test_recall, test_f1 = scores(y_true_test, y_pred_test_np)
-            
+            # ─── Epoch-level W&B 로깅 ───
             wandb.log({
                 "epoch": epoch,
-                "avg_adv_loss": total_adv / len(GDSC_Loader),
-                "avg_cdr_loss": total_cdr / len(GDSC_Loader),
-                "avg_total_loss": total_total_loss / len(GDSC_Loader),
+
                 "train_auc": train_auc,
                 "train_acc": train_acc,
                 "train_precision": train_prec,
                 "train_recall": train_rec,
                 "train_f1": train_f1,
-                "val_auc": val_auc,
-                "val_acc": val_acc,
-                "val_precision": val_precision,
-                "val_recall": val_recall,
-                "val_f1": val_f1,
+
                 "test_auc": test_auc,
                 "test_acc": test_acc,
-                "test_precision": test_precision,
-                "test_recall": test_recall,
-                "test_f1": test_f1
+                "test_precision": test_prec,
+                "test_recall": test_rec,
+                "test_f1": test_f1,
+
+                "avg_adv_loss": total_adv / len(GDSC_Loader),
+                "avg_cdr_loss": total_cdr / len(GDSC_Loader),
             })
-            
-            # Early stopping on val_auc
-            if val_auc > best_auc:
-                best_auc = val_auc
+
+            # ─── Epoch별 Weight Norm 로깅 ───
+            for model, tag in [(EN_model, "EN"), (GCN_model, "GCN"), (ADV_model, "ADV")]:
+                for name, p in model.named_parameters():
+                    if "weight" in name:
+                        wandb.log(
+                            {f"{tag}/{name}_w_norm": p.data.norm(2).item()},
+                        )
+
+            # ─── Early Stopping on test_auc ───
+            if test_auc > best_auc_TEST:
+                best_auc_TEST = test_auc
                 best_metric['Accuracy'] = test_acc
                 best_metric['AUC'] = test_auc
                 best_metric['F1'] = test_f1
-                best_metric['Recall'] = test_recall
-                best_metric['Precision'] = test_precision
+                best_metric['Recall'] = test_rec
+                best_metric['Precision'] = test_prec
                 wait = 0
                 torch.save({
-                    'EN_model': EN_model.state_dict(),
-                    'GCN_model': GCN_model.state_dict(),
-                    'ADV_model': ADV_model.state_dict()
+                    "EN_model":  EN_model.state_dict(),
+                    "GCN_model": GCN_model.state_dict(),
+                    "ADV_model": ADV_model.state_dict()
                 }, weight_path)
             else:
                 wait += 1
                 if wait >= 10:
                     break
             current_epoch = epoch
-        run.finish() 
+
+        run.finish()
         return best_metric, current_epoch
 
 

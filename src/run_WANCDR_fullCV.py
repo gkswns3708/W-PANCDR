@@ -7,9 +7,11 @@ from sklearn.model_selection import train_test_split
 from sklearn import metrics
 import pandas as pd
 israndom=False
-from utils import DataGenerate, DataFeature, create_one_random_search_params_df
-from ModelTraining.model_training import train_W_PANCDR_full_cv
-
+from utils import DataGenerate, DataFeature
+from ModelTraining.model_training import train_WANCDR_full_cv
+import argparse
+from config import Config
+from utils import summary_results, mkdirs
 device = torch.device('cuda')
 
 torch.manual_seed(0)
@@ -53,6 +55,18 @@ def f1(y_true, y_pred):
 
 
 if __name__ == '__main__':
+    args = argparse.ArgumentParser(description='W-PANCDR Full CV')
+    args.add_argument('--mode', type=str, default='WANCDR', choices=['PANCDR', 'WANCDR'], help='Mode of training: PANCDR or WANCDR')
+    args.add_argument('--strategy', type=str, default='5FoldCV', choices=['5FoldCV', 'Nested'], help='Cross-validation strategy: 5FoldCV or Nested')
+    args.add_argument('--optimization', type=str, default='Test AUC', choices=['Test AUC', 'W_distance'], help='Optimization metric: Test AUC or W_distance')
+    args = args.parse_args()
+    
+    config = Config(args.mode, args.strategy, args.optimization)
+    config = config.get_config()
+    assert config is not None, "Configuration loading failed. Please check the config file."
+    
+    mkdirs(config)
+    
     drug_feature,gexpr_feature, t_gexpr_feature, data_idx = DataGenerate(Drug_info_file,Cell_line_info_file,Drug_feature_file,Gene_expression_file,P_Gene_expression_file,Cancer_response_exp_file)
     T_drug_feature, T_gexpr_feature, T_data_idx = DataGenerate(T_Drug_info_file,T_Patient_info_file,T_Drug_feature_file,T_Gene_expression_file,None,T_Cancer_response_exp_file,dataset="TCGA")
     TX_drug_data_test,TX_gexpr_data_test,TY_test,Tcancer_type_test_list = DataFeature(T_data_idx,T_drug_feature,T_gexpr_feature,dataset="TCGA")
@@ -73,13 +87,34 @@ if __name__ == '__main__':
     X_drug_feat_data = np.array(X_drug_feat_data)
     X_drug_adj_data = np.array(X_drug_adj_data)
 
-    data = [X_drug_feat_data,X_drug_adj_data,X_gexpr_data,Y,t_gexpr_feature]
-    
-    n_outer_splits= 5
-    # 랜덤 파라미터 생성 및 저장
-    param_file = "GDSC_5FoldCV_WANCDR_Hyperparams.csv"
-    random_params_df = create_one_random_search_params_df(n_params=20, output_file=param_file , log_file = './logs/GDSC_CV_WANCDR_all.csv', mode='WANCDR')
-    auc_test_df = train_W_PANCDR_full_cv(n_outer_splits,data,param_file)
+    train_data = [X_drug_feat_data,X_drug_adj_data,X_gexpr_data,Y,t_gexpr_feature]
+    # test_data = [TX_drug_feat_data_test,TX_drug_adj_data_test,TX_gexpr_data_test,TY_test]
+    auc_test_df = train_WANCDR_full_cv(train_data, result_file='', config=config)
 
-    auc_test_df.to_csv('GDSC_10FoldCV_WANCDR', sep=',')
+    auc_test_df.to_csv(f'GDSC_{config["mode"]}_{config["strategy"]}_{config["test_metric"]}.csv', sep=',')
+    # 추가적으로 이렇게 n_outer_split/n_params_per_fold 마다 나온 결과들을 종합해서 
+    # config['csv']['total_result_path']에 저장하는 로직 추가 예정
+    # 이때 저장할 때는 각 hyperparmeter의 조합별로의 평균/분산 값을 저장.
+    # 예시:
+    # {
+    #     'nz': 100,
+    #     'h_dims': 100,
+    #     'lr': 0.001,
+    #     'lam': 0.01,
+    #     'batch_size': [128, 14],
+    #     'mean_auc': 0.85,
+    #     'std_auc': 0.02,
+    #     'mean_f1': 0.80,
+    #     'std_f1': 0.03,
+    #     'mean_recall': 0.78,
+    #     'std_recall': 0.01,
+    #     'mean_precision': 0.82,
+    #     'std_precision': 0.02
+    # }
+    # 이 결과는 추후에 모델의 성능을 비교하거나, 최적의 하이퍼파라미터 조합을 찾는 데 사용될 수 있습니다.
+    # utils.py에 summary_results 함수를 추가하여 이 작업을 수행할 수 있습니다.
+    summary_results(auc_test_df, config)
+    
+    
+    
 

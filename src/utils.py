@@ -347,8 +347,9 @@ def load_past_params(log_file):
     return past_params
 
 
-def generate_random_params(mode, n_params, existing_params=set()):
+def generate_random_params(mode=None, n_params=None, existing_params=set()):
     """기존 조합과 겹치지 않는 새로운 하이퍼파라미터 조합 생성"""
+    
     if mode == "WANCDR":
         nz_ls = [100, 128, 256]
         d_dims_ls = [100, 128, 256]
@@ -414,42 +415,89 @@ def generate_random_params(mode, n_params, existing_params=set()):
         return random_params
 
 
-def create_different_random_search_params_df(n_folds=10, n_params_per_fold=20,
-                                   output_file="random_search_params.csv",
-                                   log_file="./logs/GDSC_CV_all.csv"):
-    past_params = load_past_params(log_file)
-    folds_params = {}
+# def create_different_random_search_params_df(n_folds=10, n_params_per_fold=20,
+#                                    output_file="random_search_params.csv",
+#                                    log_file="./logs/GDSC_CV_all.csv"):
+#     past_params = load_past_params(log_file)
+#     folds_params = {}
 
-    for fold in range(n_folds):
-        fold_params = generate_random_params(n_params_per_fold, existing_params=past_params)
-        for param in fold_params:
-            param_tuple = (
-                param['nz'], param['d_dim'], param['lr'], param['lr_adv'], param['lam'], tuple(param['batch_size'])
-            )
-            past_params.add(param_tuple)  # 다음 fold에서도 중복 방지
-        folds_params[f"Fold_{fold}"] = fold_params
+#     for fold in range(n_folds):
+#         fold_params = generate_random_params(n_params_per_fold, existing_params=past_params)
+#         for param in fold_params:
+#             param_tuple = (
+#                 param['nz'], param['d_dim'], param['lr'], param['lr_adv'], param['lam'], tuple(param['batch_size'])
+#             )
+#             past_params.add(param_tuple)  # 다음 fold에서도 중복 방지
+#         folds_params[f"Fold_{fold}"] = fold_params
 
-    # DataFrame 변환
-    params_df = pd.DataFrame([
-        [fold, params] for fold, params_list in folds_params.items() for params in params_list
-    ], columns=['Fold', 'Best_params'])
+#     # DataFrame 변환
+#     params_df = pd.DataFrame([
+#         [fold, params] for fold, params_list in folds_params.items() for params in params_list
+#     ], columns=['Fold', 'Best_params'])
 
-    params_df.to_csv(output_file, index=False)
-    return params_df
+#     params_df.to_csv(output_file, index=False)
+#     return params_df
 
-def create_one_random_search_params_df(n_params=20,
-                                   output_file="random_search_params.csv",
-                                   log_file="./logs/GDSC_CV_all.csv",
-                                   mode='WANCDR'):
-    past_params = load_past_params(log_file)
+def create_one_random_search_params_df(config = None):
+    assert config is not None, "Configuration must be provided."
+    past_params = load_past_params(config['csv']['total_result_path'])
 
-    # 모든 Fold에서 동일하게 쓸 단일 세트 생성
-    params_list = generate_random_params(mode, n_params, existing_params=past_params)
+    mode = config['mode'] # WANCDR or PANCDR
+    n_params = config['hp']['n_params_per_fold']
+    params_list = generate_random_params(mode=mode, n_params=n_params, existing_params=past_params)
 
     # Fold 정보 없이 저장
     params_df = pd.DataFrame([
         [params] for params in params_list
-    ], columns=['Best_params'])
+    ], columns=['Hyperparameters'])
 
-    params_df.to_csv(output_file, index=False)
+    params_df.to_csv(config['csv']['hp_list_path'], index=False)
     return params_df
+
+# 추가적으로 이렇게 n_outer_split/n_params_per_fold 마다 나온 결과들을 종합해서 
+# config['csv']['total_result_path']에 저장하는 로직 추가 예정
+# 이때 저장할 때는 각 hyperparmeter의 조합별로의 평균/분산 값을 저장.
+# 예시:
+# {
+#     'nz': 100,
+#     'h_dims': 100,
+#     'lr': 0.001,
+#     'lam': 0.01,
+#     'batch_size': [128, 14],
+#     'mean_auc': 0.85,
+#     'std_auc': 0.02,
+#     'mean_f1': 0.80,
+#     'std_f1': 0.03,
+#     'mean_recall': 0.78,
+#     'std_recall': 0.01,
+#     'mean_precision': 0.82,
+#     'std_precision': 0.02
+# }
+# 이 결과는 추후에 모델의 성능을 비교하거나, 최적의 하이퍼파라미터 조합을 찾는 데 사용될 수 있습니다.
+# utils.py에 summary_results 함수를 추가하여 이 작업을 수행할 수 있습니다.
+def summary_results(results_df, config):
+    """결과를 요약하여 CSV 파일로 저장"""
+    summary = {}
+    for col in results_df.columns:
+        if col == 'Best_params':
+            continue
+        summary[col] = {
+            'mean': results_df[col].mean(),
+            'std': results_df[col].std()
+        }
+    
+    # 하이퍼파라미터 정보 추출
+    best_params = json.loads(results_df['Best_params'].iloc[0].replace("'", '"'))
+    summary.update(best_params)
+    
+    # DataFrame으로 변환
+    summary_df = pd.DataFrame([summary])
+    
+    # CSV로 저장
+    summary_df.to_csv(config['csv']['total_result_path'], index=False)
+    
+def mkdirs(config):
+    all_paths = list(config['csv'].values()) + [config['train']['weight_path']]
+    set_paths = set(map(os.path.dirname, all_paths))
+    for path in set_paths:
+        os.makedirs(path, exist_ok=True)
