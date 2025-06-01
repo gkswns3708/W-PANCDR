@@ -350,7 +350,7 @@ def load_past_params(log_file):
 def generate_random_params(mode=None, n_params=None, existing_params=set()):
     """기존 조합과 겹치지 않는 새로운 하이퍼파라미터 조합 생성"""
     
-    if mode == "WANCDR":
+    if "WANCDR" in mode:
         nz_ls = [100, 128, 256]
         d_dims_ls = [100, 128, 256]
         lr_ls = [0.001, 0.0001]
@@ -501,3 +501,46 @@ def mkdirs(config):
     set_paths = set(map(os.path.dirname, all_paths))
     for path in set_paths:
         os.makedirs(path, exist_ok=True)
+        
+def f1(y_true, y_pred):
+    """
+    AUC 기반 임계값을 찾아서 F1을 계산하는 헬퍼 함수.
+    """
+    fpr, tpr, thr = metrics.roc_curve(y_true, y_pred)
+    optimal_idx = np.argmax(tpr - fpr)
+    optimal_thr = thr[optimal_idx]
+    y_pred_ = (y_pred > optimal_thr).astype(int)
+    return metrics.f1_score(y_true, y_pred_)
+
+
+def load_preprocessed_gdsc(gdsc_root):
+    """
+    미리 저장해 둔 GDSC .npy 파일을 로드해서 반환
+    """
+    data = {}
+    data["X_drug_feat_data"] = np.load(os.path.join(gdsc_root, "X_drug_feat_data.npy"))
+    data["X_drug_adj_data"]  = np.load(os.path.join(gdsc_root, "X_drug_adj_data.npy"))
+    data["X_gexpr_data"]     = np.load(os.path.join(gdsc_root, "X_gexpr_data.npy"))
+    data["Y"]                = np.load(os.path.join(gdsc_root, "Y.npy"))
+    data["t_gexpr_feature"]  = np.load(os.path.join(gdsc_root, "t_gexpr_feature.npy"))
+    return data
+
+
+def load_preprocessed_tcga(tcga_root):
+    """
+    미리 저장해 둔 TCGA .npy 파일을 로드해서 반환
+    """
+    data = {}
+    data["TX_drug_feat_data_test"] = torch.FloatTensor(
+        np.load(os.path.join(tcga_root, "TX_drug_feat_data_test.npy"))
+    )
+    data["TX_drug_adj_data_test"]  = torch.FloatTensor(
+        np.load(os.path.join(tcga_root, "TX_drug_adj_data_test.npy"))
+    )
+    data["TX_gexpr_data_test"]     = torch.FloatTensor(
+        np.load(os.path.join(tcga_root, "TX_gexpr_data_test.npy"))
+    )
+    data["TY_test"]                = torch.FloatTensor(
+        np.load(os.path.join(tcga_root, "TY_test.npy"))
+    )
+    return data
