@@ -1,5 +1,5 @@
 import random,os
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 import torch
 import numpy as np
@@ -11,7 +11,7 @@ from utils import DataGenerate, DataFeature
 from ModelTraining.model_training import train_WANCDR_full_cv
 import argparse
 from config import Config
-from utils import summary_results, mkdirs
+from utils import summary_results, mkdirs, load_preprocessed_gdsc, load_preprocessed_tcga
 device = torch.device('cuda')
 
 torch.manual_seed(0)
@@ -45,75 +45,134 @@ lr_ls = [0.001, 0.0001]
 lam_ls = [0.01, 0.001, 0.0001]
 batch_size_ls = [[128,14],[256,28]]
 
-def f1(y_true, y_pred):
-    fpr, tpr, thr = metrics.roc_curve(y_true, y_pred)
-    optimal_idx = np.argmax(tpr-fpr)
-    optimal_thr = thr[optimal_idx]
-    y_pred_ = (y_pred > optimal_thr).astype(int)
-    output = metrics.f1_score(y_true, y_pred_)
-    return output
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="W-PANCDR Full CV")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="WANCDR",
+        choices=["PANCDR", "WANCDR" ,"WANCDR_5Critic"],
+        help="Mode of training: PANCDR or WANCDR",
+    )
+    parser.add_argument(
+        "--strategy",
+        type=str,
+        default="5FoldCV",
+        choices=["5FoldCV", "CDRTCGA", "Nested"],
+        help="Cross-validation strategy: 5FoldCV or CDRTCGA or Nested",
+    )
+    parser.add_argument(
+        "--test_metric",
+        type=str,
+        default="Test AUC",
+        choices=["Test AUC", "W_distance", "Loss"],
+        help="Optimization metric: Test AUC or W_distance or Loss",
+    )
+    parser.add_argument(
+        "--use_preprocessed",
+        action="store_true",
+        help="미리 저장된 .npy 파일을 사용할지 여부",
+    )
+    args = parser.parse_args()
 
-if __name__ == '__main__':
-    args = argparse.ArgumentParser(description='W-PANCDR Full CV')
-    args.add_argument('--mode', type=str, default='WANCDR', choices=['PANCDR', 'WANCDR'], help='Mode of training: PANCDR or WANCDR')
-    args.add_argument('--strategy', type=str, default='5FoldCV', choices=['5FoldCV', 'Nested'], help='Cross-validation strategy: 5FoldCV or Nested')
-    args.add_argument('--optimization', type=str, default='Test AUC', choices=['Test AUC', 'W_distance'], help='Optimization metric: Test AUC or W_distance')
-    args = args.parse_args()
-    
-    config = Config(args.mode, args.strategy, args.optimization)
-    config = config.get_config()
+    # Config 불러오기
+    config_obj = Config(
+        mode=args.mode, strategy=args.strategy, test_metric=args.test_metric
+    )
+    config = config_obj.get_config()
     assert config is not None, "Configuration loading failed. Please check the config file."
-    
+
+    # 필요한 디렉터리 생성
     mkdirs(config)
-    
-    drug_feature,gexpr_feature, t_gexpr_feature, data_idx = DataGenerate(Drug_info_file,Cell_line_info_file,Drug_feature_file,Gene_expression_file,P_Gene_expression_file,Cancer_response_exp_file)
-    T_drug_feature, T_gexpr_feature, T_data_idx = DataGenerate(T_Drug_info_file,T_Patient_info_file,T_Drug_feature_file,T_Gene_expression_file,None,T_Cancer_response_exp_file,dataset="TCGA")
-    TX_drug_data_test,TX_gexpr_data_test,TY_test,Tcancer_type_test_list = DataFeature(T_data_idx,T_drug_feature,T_gexpr_feature,dataset="TCGA")
 
-    TX_drug_feat_data_test = [item[0] for item in TX_drug_data_test]
-    TX_drug_adj_data_test = [item[1] for item in TX_drug_data_test]
-    TX_drug_feat_data_test = np.array(TX_drug_feat_data_test)#nb_instance * Max_stom * feat_dim
-    TX_drug_adj_data_test = np.array(TX_drug_adj_data_test)#nb_instance * Max_stom * Max_stom  
+    # --- 데이터 로드 단계 ---
+    if args.use_preprocessed:
+        # 1) 미리 저장된 npy를 불러오기
+        gdsc_data = load_preprocessed_gdsc(config['preprocessed']['gdsc_path'])
+        tcga_data = load_preprocessed_tcga(config['preprocessed']['tcga_path'])
 
-    TX_drug_feat_data_test = torch.FloatTensor(TX_drug_feat_data_test)
-    TX_drug_adj_data_test = torch.FloatTensor(TX_drug_adj_data_test)
-    TX_gexpr_data_test = torch.FloatTensor(TX_gexpr_data_test)
-    TY_test = torch.FloatTensor(TY_test)
+        X_drug_feat_data = torch.FloatTensor(gdsc_data["X_drug_feat_data"])
+        X_drug_adj_data = torch.FloatTensor(gdsc_data["X_drug_adj_data"])
+        X_gexpr_data = torch.FloatTensor(gdsc_data["X_gexpr_data"])
+        Y = torch.FloatTensor(gdsc_data["Y"])
+        t_gexpr_feature = torch.FloatTensor(gdsc_data["t_gexpr_feature"])
 
-    X_drug_data,X_gexpr_data,Y,cancer_type_train_list = DataFeature(data_idx,drug_feature,gexpr_feature)
-    X_drug_feat_data = [item[0] for item in X_drug_data]
-    X_drug_adj_data = [item[1] for item in X_drug_data]
-    X_drug_feat_data = np.array(X_drug_feat_data)
-    X_drug_adj_data = np.array(X_drug_adj_data)
+        TX_drug_feat_data_test = torch.FloatTensor(tcga_data["TX_drug_feat_data_test"])
+        TX_drug_adj_data_test = torch.FloatTensor(tcga_data["TX_drug_adj_data_test"])
+        TX_gexpr_data_test = torch.FloatTensor(tcga_data["TX_gexpr_data_test"])
+        TY_test = torch.FloatTensor(tcga_data["TY_test"])
 
-    train_data = [X_drug_feat_data,X_drug_adj_data,X_gexpr_data,Y,t_gexpr_feature]
-    # test_data = [TX_drug_feat_data_test,TX_drug_adj_data_test,TX_gexpr_data_test,TY_test]
-    auc_test_df = train_WANCDR_full_cv(train_data, result_file='', config=config)
+    else:
+        # 2) 기존 방식대로 DataGenerate / DataFeature 사용
+        DPATH = "../data"
+        Drug_info_file = f"{DPATH}/GDSC/GDSC_drug_binary.csv"
+        Cell_line_info_file = f"{DPATH}/GDSC/Cell_Lines_Details.txt"
+        Drug_feature_file = f"{DPATH}/GDSC/drug_graph_feat"
+        Cancer_response_exp_file = f"{DPATH}/GDSC/GDSC_binary_response_151.csv"
+        Gene_expression_file = f"{DPATH}/GDSC/GDSC_expr_z_702.csv"
+        P_Gene_expression_file = f"{DPATH}/TCGA/Pretrain_TCGA_expr_702_01A.csv"
+        T_Drug_info_file = f"{DPATH}/TCGA/TCGA_drug_new.csv"
+        T_Patient_info_file = f"{DPATH}/TCGA/TCGA_type_new.txt"
+        T_Drug_feature_file = f"{DPATH}/TCGA/drug_graph_feat"
+        T_Cancer_response_exp_file = f"{DPATH}/TCGA/TCGA_response_new.csv"
+        T_Gene_expression_file = f"{DPATH}/TCGA/TCGA_expr_z_702.csv"
 
-    auc_test_df.to_csv(f'GDSC_{config["mode"]}_{config["strategy"]}_{config["test_metric"]}.csv', sep=',')
-    # 추가적으로 이렇게 n_outer_split/n_params_per_fold 마다 나온 결과들을 종합해서 
-    # config['csv']['total_result_path']에 저장하는 로직 추가 예정
-    # 이때 저장할 때는 각 hyperparmeter의 조합별로의 평균/분산 값을 저장.
-    # 예시:
-    # {
-    #     'nz': 100,
-    #     'h_dims': 100,
-    #     'lr': 0.001,
-    #     'lam': 0.01,
-    #     'batch_size': [128, 14],
-    #     'mean_auc': 0.85,
-    #     'std_auc': 0.02,
-    #     'mean_f1': 0.80,
-    #     'std_f1': 0.03,
-    #     'mean_recall': 0.78,
-    #     'std_recall': 0.01,
-    #     'mean_precision': 0.82,
-    #     'std_precision': 0.02
-    # }
-    # 이 결과는 추후에 모델의 성능을 비교하거나, 최적의 하이퍼파라미터 조합을 찾는 데 사용될 수 있습니다.
-    # utils.py에 summary_results 함수를 추가하여 이 작업을 수행할 수 있습니다.
-    summary_results(auc_test_df, config)
+        # GDSC: DataGenerate → DataFeature
+        drug_feature, gexpr_feature, t_gexpr_feature, data_idx = DataGenerate(
+            Drug_info_file,
+            Cell_line_info_file,
+            Drug_feature_file,
+            Gene_expression_file,
+            P_Gene_expression_file,
+            Cancer_response_exp_file,
+        )
+        X_drug_data, X_gexpr_data, Y, cancer_type_train_list = DataFeature(
+            data_idx, drug_feature, gexpr_feature
+        )
+        # 리스트 → np.array
+        X_drug_feat_data = np.array([item[0] for item in X_drug_data])
+        X_drug_adj_data = np.array([item[1] for item in X_drug_data])
+        X_gexpr_data = np.array(X_gexpr_data)
+        Y = np.array(Y)
+
+        # TCGA: DataGenerate → DataFeature
+        T_drug_feature, T_gexpr_feature, T_data_idx = DataGenerate(
+            T_Drug_info_file,
+            T_Patient_info_file,
+            T_Drug_feature_file,
+            T_Gene_expression_file,
+            None,
+            T_Cancer_response_exp_file,
+            dataset="TCGA",
+        )
+        TX_drug_data_test, TX_gexpr_data_test, TY_test, _ = DataFeature(
+            T_data_idx, T_drug_feature, T_gexpr_feature, dataset="TCGA"
+        )
+        TX_drug_feat_data_test = torch.FloatTensor(
+            np.array([item[0] for item in TX_drug_data_test])
+        )
+        TX_drug_adj_data_test = torch.FloatTensor(
+            np.array([item[1] for item in TX_drug_data_test])
+        )
+        TX_gexpr_data_test = torch.FloatTensor(np.array(TX_gexpr_data_test))
+        TY_test = torch.FloatTensor(np.array(TY_test))
+
+    # --- train_WANCDR_full_cv 호출 ---
+    train_data = [X_drug_feat_data, X_drug_adj_data, X_gexpr_data, Y, t_gexpr_feature]
+    test_data  = [TX_drug_feat_data_test, TX_drug_adj_data_test, TX_gexpr_data_test, TY_test]
+
+    auc_test_df = train_WANCDR_full_cv(
+        train_data,
+        test_data,
+        result_file="",
+        config=config,
+    )
+
+    # 결과를 CSV로 저장
+    out_fname = f"GDSC_{config['mode']}_{config['strategy']}_{config['test_metric']}.csv"
+    auc_test_df.to_csv(out_fname, sep=",", index=False)
+    print(f"Saved results to {out_fname}")
     
     
     
