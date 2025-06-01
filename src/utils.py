@@ -353,9 +353,11 @@ def generate_random_params(mode=None, n_params=None, existing_params=set()):
     if "WANCDR" in mode:
         nz_ls = [100, 128, 256]
         d_dims_ls = [100, 128, 256]
-        lr_ls = [0.001, 0.0001]
-        lr_adv_ls = [0.001, 0.0001]
-        lam_ls = [0.01, 0.001, 0.0001]
+        lr_ls = [0.0001, 0.00001] # Encoder + GCN
+        lr_adv_ls = [0.0001, 0.00001] # Critic
+        lam_ls = [0.001, 0.0001] # BCE + lambda * Adv
+        if "5Critic" in mode:
+            lr_adv_ls = [value / 5 for value in lr_adv_ls]  # 5개의 Critic을 위한 학습률 조정
         batch_size_ls = [[128, 14], [256, 28]]
 
         random_params = set()

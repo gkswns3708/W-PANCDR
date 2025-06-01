@@ -176,7 +176,8 @@ if __name__ == '__main__':
         # 1) 현재 iteration 결과를 DataFrame으로 만듭니다.
         metrics = best_metric.copy()
         metrics['Iteration'] = iter
-        df_current = pd.DataFrame([metrics])
+        merged_metrics = {**best_params, **metrics}
+        df_current = pd.DataFrame([merged_metrics])
 
         # 2) 기존 CSV가 있으면 불러와서 concat, 없으면 그대로 사용
         if os.path.exists(csv_path):
