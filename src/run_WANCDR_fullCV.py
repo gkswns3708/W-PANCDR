@@ -1,6 +1,4 @@
 import random,os
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
-os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 import torch
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -74,7 +72,20 @@ if __name__ == "__main__":
         action="store_true",
         help="미리 저장된 .npy 파일을 사용할지 여부",
     )
+    parser.add_argument(
+        "--device_num",
+        type=int,
+        default=0,
+        help="사용할 GPU 디바이스 번호 (기본값: 0)",
+    )
     args = parser.parse_args()
+    
+    torch.manual_seed(0)
+    torch.cuda.manual_seed_all(0)
+    random.seed(0)
+    np.random.seed(0)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     # Config 불러오기
     config_obj = Config(
@@ -82,6 +93,7 @@ if __name__ == "__main__":
     )
     config = config_obj.get_config()
     assert config is not None, "Configuration loading failed. Please check the config file."
+    config['device'] = f"cuda:{args.device_num}" if torch.cuda.is_available() else "cpu"
 
     # 필요한 디렉터리 생성
     mkdirs(config)
