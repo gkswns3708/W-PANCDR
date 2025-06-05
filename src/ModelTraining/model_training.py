@@ -22,7 +22,7 @@ from copy import deepcopy
 from itertools import cycle
 
 # TODO: Variational Encoder를 추가 혹은 다른 버전의 Encoder를 추가. 현재까지는 FC Layer만 존재
-from utils import scores, create_one_random_search_params_df
+from utils import scores, create_one_random_search_params_df, TCGA_Viz
 from ModelTraining.model import Encoder_FC, GCN, ADV, gradient_penalty, Critic
 
 # For PANCDR
@@ -36,7 +36,8 @@ class train_WANCDR:
         self.outer_fold = outer_fold
         self.config = config
     def train(self, params, weight_path=f"../checkpoint/model.pt"):
-        if self.config['mode'] == 'WANCDR_5Critic':
+        # n_critic 설정
+        if '5Critic' in self.config['mode']:
             return self._train(params, weight_path, n_critic=5)
         else:
             return self._train(params, weight_path, n_critic=1)
@@ -107,32 +108,38 @@ class train_WANCDR:
             X_drug_feat_train, X_drug_adj_train, X_gexpr_train, Y_train_tensor
         )
         GDSC_Loader = torch.utils.data.DataLoader(
-            dataset=GDSC_Dataset, batch_size=batch_size[0], shuffle=True, drop_last=True
+            dataset=GDSC_Dataset, batch_size=batch_size[0], shuffle=True, drop_last=True,
         )
 
         TCGA_Dataset = torch.utils.data.TensorDataset(X_t_train_tensor)
         TCGA_Loader = torch.utils.data.DataLoader(
-            dataset=TCGA_Dataset, batch_size=batch_size[1], shuffle=True, drop_last=True
+            dataset=TCGA_Dataset, batch_size=batch_size[1], shuffle=True, drop_last=True, 
         )
 
         # model init
-        EN_model = Encoder_FC(X_gexpr_train.shape[1], nz).to(device)
-        GCN_model = GCN(
-            X_drug_feat_train.shape[2],
-            [256, 256, 256],
-            h_dims=[d_dim, nz + d_dim],
-            use_dropout=False,
-        ).to(device)
-        Critic_model = Critic(nz).to(device)
+        # TODO: Implement by getattr()
+        if "WANCDR" in self.config['mode']:
+            if 'Gaussian' in self.config['mode']:
+                EN_model = Encoder(X_gexpr_train.shape[1], nz, device).to(device)
+            else:
+                EN_model = Encoder_FC(X_gexpr_train.shape[1], nz).to(device)
+            GCN_model = GCN(
+                X_drug_feat_train.shape[2],
+                [256, 256, 256],
+                h_dims=[d_dim, nz + d_dim],
+                use_dropout=False,
+            ).to(device)
+            Critic_model = Critic(nz).to(device)
+            optimizer = torch.optim.Adam(
+                itertools.chain(EN_model.parameters(), GCN_model.parameters()), lr=lr
+            )
+            optimizer_critic = torch.optim.Adam(Critic_model.parameters(), lr=lr_critic)
 
+            optimizer_critic = torch.optim.Adam(Critic_model.parameters(), lr=lr_critic)
         wandb.watch(EN_model, log="all", log_freq=50)
         wandb.watch(GCN_model, log="all", log_freq=50)
         wandb.watch(Critic_model, log="all", log_freq=50)
 
-        optimizer = torch.optim.Adam(
-            itertools.chain(EN_model.parameters(), GCN_model.parameters()), lr=lr
-        )
-        optimizer_critic = torch.optim.Adam(Critic_model.parameters(), lr=lr_critic)
         loss_fn = torch.nn.BCELoss()
 
         # Initialize log_metric with default values before training loop
@@ -145,31 +152,42 @@ class train_WANCDR:
             "Train Precision": 0.0,
             "Train W_distance": float('inf'),
             "Train critic_loss": float('inf'),
-            "Train gen_loss": 0.0,
-            "Train total_loss": 0.0,
+            "Train gen_loss": float('inf'),
+            "Train total_loss": float('inf'),
             "Val AUC": 0.0,
             "Val Accuracy": 0.0,
             "Val F1": 0.0,
             "Val Recall": 0.0,
             "Val Precision": 0.0,
             "Val W_distance": float('inf'),
-            "Val critic_loss": 0.0,
-            "Val gen_loss": 0.0,
-            "Val total_loss": 0.0,
+            "Val critic_loss": float('inf'),
+            "Val gen_loss": float('inf'),
+            "Val total_loss": float('inf'),
             "Test AUC": 0.0,
             "Test Accuracy": 0.0,
             "Test F1": 0.0,
             "Test Recall": 0.0,
             "Test Precision": 0.0,
             "Test W_distance": float('inf'),
-            "Test critic_loss": 0.0,
-            "Test gen_loss": 0.0,
-            "Test total_loss": 0.0,
+            "Test critic_loss": float('inf'),
+            "Test gen_loss": float('inf'),
+            "Test total_loss": float('inf'),
         }
         best_metric = deepcopy(log_metric)
         wait = 0
         current_epoch = -1
 
+        # Logging UMap Before Training
+        with torch.no_grad():
+            GDSC_val_latent_vector = EN_model(X_gexpr_holdout)
+            uTCGA_val_latent_vector = EN_model(X_t_holdout)
+            TCGA_Viz(
+                GDSC_val_latent_vector,
+                uTCGA_val_latent_vector,
+                save_path=tsne_save_path,
+                title=f"UMAP @ Fold {self.outer_fold}, Before Training",
+            )
+        
         # training loop
         for epoch in tqdm(
             range(self.config["train"]["max_epochs"]), desc="Epoch", leave=True
@@ -364,22 +382,26 @@ class train_WANCDR:
 
             if save:
                 wait = 0
-                # torch.save(
-                #     {
-                #         "EN_model": EN_model.state_dict(),
-                #         "GCN_model": GCN_model.state_dict(),
-                #         "Critic_model": Critic_model.state_dict(),
-                #     },
-                #     weight_path,
-                # )
                 current_epoch = epoch
                 best_metric = deepcopy(log_metric)
+                if self.config['umap_log']:    
+                    base_tsne_path = self.config["csv"]["umap_path"]
+                    tsne_save_path = base_tsne_path.replace(".png", f"/fold{self.outer_fold}/epoch{epoch}.png")
+                    
+                    # 디렉토리 자동 생성
+                    os.makedirs(os.path.dirname(tsne_save_path), exist_ok=True)
+                    
+                    TCGA_Viz(
+                        GDSC_val_latent_vector,
+                        uTCGA_val_latent_vector,
+                        save_path=tsne_save_path,
+                        title=f"UMAP @ Fold {self.outer_fold}, Epoch {epoch}"
+                    )
             else:
                 wait += 1
 
             # CSV로 매 epoch마다 기록
             current_csv_path = self.config["csv"]["current_result_path"]
-            print(self.outer_fold, " -self.outer_fold")
             df_current = pd.DataFrame([{"Iteration": self.outer_fold, **params, **log_metric}])
             if os.path.exists(current_csv_path):
                 df_history = pd.read_csv(current_csv_path)
@@ -387,9 +409,9 @@ class train_WANCDR:
             else:
                 df_all = df_current
             df_all.to_csv(current_csv_path, index=False)
-            print(f"Saved metrics for iteration {self.outer_fold} to {current_csv_path}")
 
-            if wait >= 10:
+
+            if wait >= self.config['train']['patient']:
                 print(f"Early stopping at epoch {epoch} due to no improvement.")
                 break
 
@@ -438,7 +460,6 @@ def train_W_PANCDR_nested(
     outer_splits = StratifiedKFold(
         n_splits=n_outer_splits, shuffle=True, random_state=0
     )
-    print(n_outer_splits, "- n_outer_splits")
     outer_folds = outer_splits.split(X_drug_feat_data, Y)
 
     # Load all best params for all folds and all random samples
@@ -582,7 +603,7 @@ def train_WANCDR_full_cv(
         n_splits=config["hp"]["n_outer_splits"], shuffle=True, random_state=42
     )
     auc_test_df = pd.DataFrame(
-        columns=["Fold", f'metric_{config["test_metric"]}', "params", "end_epoch"]
+        columns=["Fold", f'metric_{config["test_metric"]}', "params", "end_epoch"], dtype="object"
     )
     for i, param_dict in enumerate(param_list):
         for fold, (train_idx, val_idx) in enumerate(cv.split(X_drug_feat_data, Y)):

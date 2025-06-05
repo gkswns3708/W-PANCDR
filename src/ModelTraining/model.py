@@ -204,7 +204,7 @@ class Encoder(nn.Module):
     def forward(self, x):
         mu, logvar = self.encode(x)
         z = self.reparametrize(mu, logvar)
-        return z, mu, logvar
+        return z
     
     def encode(self, x):
         h = self.encoder(x)
@@ -344,7 +344,8 @@ class Critic(nn.Module):
             nn.LeakyReLU(0.2),
             nn.Linear(nz//2, nz//4),
             nn.LeakyReLU(0.2),
-            nn.Linear(nz//4, 1)  # <-- sigmoid 없음
+            nn.Linear(nz//4, 1),
+            nn.Sigmoid(),
         )
     
     def forward(self, x):

@@ -5,3 +5,6 @@ checkpoint/
 **/src/*.txt
 *.pt
 Preprocessed/
+*.png
+src/logs/*
+.hypothesis/

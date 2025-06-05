@@ -1,5 +1,5 @@
 import random,os
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+# os.environ["CUDA_VISIBLE_DEVICES"]="1"
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 import torch
 import numpy as np
@@ -39,6 +39,12 @@ T_Gene_expression_file = '%s/TCGA/TCGA_expr_z_702.csv'%DPATH
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="W-PANCDR Full CV")
     parser.add_argument(
+        "--train_dataset",
+        type=str,
+        choices=["GDSC", "TCGA"],
+        help="Mode of training: PANCDR or WANCDR",
+    )
+    parser.add_argument(
         "--mode",
         type=str,
         default="WANCDR",
@@ -49,14 +55,14 @@ if __name__ == '__main__':
         "--strategy",
         type=str,
         default="5FoldCV",
-        choices=["5FoldCV", "CDRTCGA", "Nested"],
+        choices=["5FoldCV", "CDRTCGA", "Nested", "None"],
         help="Cross-validation strategy: 5FoldCV or CDRTCGA or Nested",
     )
     parser.add_argument(
         "--test_metric",
         type=str,
-        default="Test AUC",
-        choices=["Test AUC", "W_distance", "Loss"],
+        default="AUC",
+        choices=["AUC", "W_distance", "Loss"],
         help="Optimization metric: Test AUC or W_distance or Loss",
     )
     parser.add_argument(
@@ -64,11 +70,19 @@ if __name__ == '__main__':
         action="store_true",
         help="미리 저장된 .npy 파일을 사용할지 여부",
     )
+    parser.add_argument(
+        "--device_num",
+        type=int,
+        default=0,
+        help="사용할 GPU 디바이스 번호 (기본값: 0)",
+    )
     args = parser.parse_args()
     
-    config = Config(mode=args.mode, strategy=args.strategy, test_metric=args.test_metric)
+    config = Config(train_dataset=args.train_dataset, mode=args.mode, strategy=args.strategy, test_metric=args.test_metric)
     config = config.get_config()
     assert config is not None, "Configuration loading failed. Please check the config file."
+    config['device'] = f"cuda:{args.device_num}" if torch.cuda.is_available() else "cpu"
+    ]
     
     mkdirs(config)
     
@@ -149,14 +163,14 @@ if __name__ == '__main__':
     test_data  = [TX_drug_feat_data_test, TX_drug_adj_data_test, TX_gexpr_data_test, TY_test]
     df = pd.read_csv("tuned_hyperparameters/TCGA_CV_params.csv")
     best_params = eval(df.loc[(df["Model"]=="WANCDR") & (df["Classification"]=="T"),"Best_params"].values[0])
-    csv_path = config['csv']['result_file_path']
+    csv_path = config['csv']['TCGA_result_file_path']
 
     # ➤ 1. 기존 CSV 불러오기 (있으면)
     if os.path.exists(csv_path):
         result_df = pd.read_csv(csv_path)
         done_iters = set(result_df['Iteration'].dropna().astype(int).tolist())
     else:
-        result_df = pd.DataFrame(columns=["Iteration", "Accuracy", "AUC", "F1", "Recall", "Precision"])
+        result_df = pd.DataFrame(columns=["Iteration", "Accuracy", "AUC", "F1", "Recall", "Precision"], dtype=object)
         done_iters = set()
 
     # ➤ 2. 반복 시작

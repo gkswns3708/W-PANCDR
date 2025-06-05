@@ -6,7 +6,7 @@ from sklearn import metrics
 import pandas as pd
 israndom=False
 from utils import DataGenerate, DataFeature
-from ModelTraining.model_training import train_WANCDR_full_cv
+from ModelTraining.model_training import train_WANCDR_full_cv, train_WANCDR
 import argparse
 from config import Config
 from utils import summary_results, mkdirs, load_preprocessed_gdsc, load_preprocessed_tcga
@@ -45,12 +45,18 @@ batch_size_ls = [[128,14],[256,28]]
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="W-PANCDR Full CV")
+    parser = argparse.ArgumentParser(description="Train model with WANCDR or PANCDR")
+    parser.add_argument(
+        "--test_dataset", # 추후 Val_dataset으로 수정 해야함.
+        type=str,
+        choices=["GDSC", "TCGA"],
+        help="Dataset for validation: GDSC or TCGA",
+    )
     parser.add_argument(
         "--mode",
         type=str,
         default="WANCDR",
-        choices=["PANCDR", "WANCDR" ,"WANCDR_5Critic"],
+        choices=["PANCDR", "WANCDR" ,"WANCDR_5Critic", "WANCDR_Gaussian", 'WANCDR_Gaussian_5Critic'],
         help="Mode of training: PANCDR or WANCDR",
     )
     parser.add_argument(
@@ -63,9 +69,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "--test_metric",
         type=str,
-        default="Test AUC",
-        choices=["Test AUC", "W_distance", "Loss"],
+        default="AUC",
+        choices=["AUC", "W_distance", "Loss"],
         help="Optimization metric: Test AUC or W_distance or Loss",
+    )
+    parser.add_argument(
+        "--patient",
+        type=int,
+        default=10,
+        help="Early stopping patience (기본값: 10)",
+    )
+    parser.add_argument(
+        "--umap_log",
+        action="store_true",
+        help="umap 결과를 로그로 저장할지 여부 (기본값: False)",
     )
     parser.add_argument(
         "--use_preprocessed",
@@ -89,14 +106,17 @@ if __name__ == "__main__":
 
     # Config 불러오기
     config_obj = Config(
-        mode=args.mode, strategy=args.strategy, test_metric=args.test_metric
+        test_dataset=args.test_dataset, mode=args.mode, strategy=args.strategy, test_metric=args.test_metric
     )
     config = config_obj.get_config()
     assert config is not None, "Configuration loading failed. Please check the config file."
+    config['umap_log'] = args.umap_log
     config['device'] = f"cuda:{args.device_num}" if torch.cuda.is_available() else "cpu"
+    config['train']['patient'] = args.patient
 
     # 필요한 디렉터리 생성
     mkdirs(config)
+    print(f"Configuration: {config}")
 
     # --- 데이터 로드 단계 ---
     if args.use_preprocessed:
@@ -173,19 +193,57 @@ if __name__ == "__main__":
     # --- train_WANCDR_full_cv 호출 ---
     train_data = [X_drug_feat_data, X_drug_adj_data, X_gexpr_data, Y, t_gexpr_feature]
     test_data  = [TX_drug_feat_data_test, TX_drug_adj_data_test, TX_gexpr_data_test, TY_test]
+    if config['test_dataset'] == 'GDSC':
+        auc_test_df = train_WANCDR_full_cv(
+            train_data,
+            test_data,
+            result_file="",
+            config=config,
+        )
+        # 결과를 CSV로 저장
+        out_fname = f"GDSC_{config['mode']}_{config['strategy']}_{config['test_metric']}.csv"
+        auc_test_df.to_csv(out_fname, sep=",", index=False)
+        print(f"Saved results to {out_fname}")
+            
+    elif config['test_dataset'] == 'TCGA':
+        df = pd.read_csv("tuned_hyperparameters/TCGA_CV_params.csv")
+        best_params = eval(df.loc[(df["Model"]=="WANCDR") & (df["Classification"]=="T"),"Best_params"].values[0])
+        csv_path = config['csv']['TCGA_result_file_path']
+            # ➤ 1. 기존 CSV 불러오기 (있으면)
+        if os.path.exists(csv_path):
+            result_df = pd.read_csv(csv_path)
+            done_iters = set(result_df['Iteration'].dropna().astype(int).tolist())
+        else:
+            result_df = pd.DataFrame(columns=["Iteration", "Accuracy", "AUC", "F1", "Recall", "Precision"], dtype=object)
+            done_iters = set()
 
-    auc_test_df = train_WANCDR_full_cv(
-        train_data,
-        test_data,
-        result_file="",
-        config=config,
-    )
+        # ➤ 2. 반복 시작
+        for iter in range(100):
+            if iter in done_iters:
+                print(f"Skipping iteration {iter}, already recorded.")
+                continue
 
-    # 결과를 CSV로 저장
-    out_fname = f"GDSC_{config['mode']}_{config['strategy']}_{config['test_metric']}.csv"
-    auc_test_df.to_csv(out_fname, sep=",", index=False)
-    print(f"Saved results to {out_fname}")
-    
-    
-    
+            weight_path = f'../checkpoint/TCGA_WANCDR/{iter}_model.pt'
+            model = train_WANCDR(train_data, None, test_data, outer_fold=iter, config=config)
+            best_metric, end_epoch = model.train(
+                best_params,
+                weight_path=os.path.join(config['train']['weight_path'], f'model_{iter}.pt')
+            )
+
+            # --- 여기에 추가 ---
+            # 1) 현재 iteration 결과를 DataFrame으로 만듭니다.
+            metrics = best_metric.copy()
+            metrics['Iteration'] = iter
+            merged_metrics = {**best_params, **metrics}
+            df_current = pd.DataFrame([merged_metrics])
+
+            # 2) 기존 CSV가 있으면 불러와서 concat, 없으면 그대로 사용
+            if os.path.exists(csv_path):
+                df_history = pd.read_csv(csv_path)
+                df_all = pd.concat([df_history, df_current], ignore_index=True)
+            else:
+                df_all = df_current
+
+            # 3) 다시 덮어쓰기
+            df_all.to_csv(csv_path, index=False)
 

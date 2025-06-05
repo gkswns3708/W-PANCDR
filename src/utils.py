@@ -7,9 +7,12 @@ import numpy as np
 import scipy.sparse as sp
 import random
 from matplotlib import pyplot as plt
+from sklearn.manifold import TSNE
+from umap import UMAP
 import umap.umap_ as umap
 import torch
 import json
+import seaborn as sns
 from sklearn import metrics
 device = torch.device('cuda')
 
@@ -350,15 +353,15 @@ def load_past_params(log_file):
 def generate_random_params(mode=None, n_params=None, existing_params=set()):
     """기존 조합과 겹치지 않는 새로운 하이퍼파라미터 조합 생성"""
     
-    if "WANCDR" in mode:
+    if 'WANCDR' in mode:
         nz_ls = [100, 128, 256]
         d_dims_ls = [100, 128, 256]
         lr_ls = [0.0001, 0.00001] # Encoder + GCN
         lr_adv_ls = [0.0001, 0.00001] # Critic
         lam_ls = [0.001, 0.0001] # BCE + lambda * Adv
+        batch_size_ls = [[128, 14], [256, 28]]
         if "5Critic" in mode:
             lr_adv_ls = [value / 5 for value in lr_adv_ls]  # 5개의 Critic을 위한 학습률 조정
-        batch_size_ls = [[128, 14], [256, 28]]
 
         random_params = set()
         attempt_count = 0
@@ -546,3 +549,48 @@ def load_preprocessed_tcga(tcga_root):
         np.load(os.path.join(tcga_root, "TY_test.npy"))
     )
     return data
+
+# UMAP viz
+def TCGA_Viz(GDSC_latent, TCGA_latent, save_path=None, title="UMAP Visualization"):
+    print(GDSC_latent.shape, TCGA_latent.shape)
+    if isinstance(GDSC_latent, torch.Tensor):
+        TCGA_cnt = TCGA_latent.shape[0]
+        random_indices = np.random.choice(
+            GDSC_latent.shape[0], size=TCGA_cnt, replace=False
+        )
+        GDSC_latent = GDSC_latent[random_indices, :]
+        GDSC_latent = GDSC_latent.detach().cpu().numpy()
+    if isinstance(TCGA_latent, torch.Tensor):
+        TCGA_latent = TCGA_latent.detach().cpu().numpy()
+
+    X = np.concatenate([GDSC_latent, TCGA_latent], axis=0)
+    y = np.array(["GDSC"] * len(GDSC_latent) + ["TCGA"] * len(TCGA_latent))
+
+    umap_model = UMAP(
+            n_components=2,
+            n_neighbors=30,     # 구조 유지
+            min_dist=0.05,      # 조밀하게
+            spread=0.5,         # 전체 range 줄이기
+            random_state=42
+        )
+    X_embedded = umap_model.fit_transform(X)
+
+    plt.figure(figsize=(8, 6))
+    ax = sns.scatterplot(
+        x=X_embedded[:, 0],
+        y=X_embedded[:, 1],
+        hue=y,
+        palette={"GDSC": "blue", "TCGA": "orange"},
+        alpha=0.6,
+        s=60
+    )
+
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles, labels=["GDSC", "TCGA"], title="Domain")
+
+    plt.title(title)
+    if save_path:
+        plt.savefig(save_path)
+        plt.close()
+    else:
+        plt.show()
