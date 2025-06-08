@@ -179,12 +179,17 @@ class train_WANCDR:
 
         # Logging UMap Before Training
         with torch.no_grad():
-            GDSC_val_latent_vector = EN_model(X_gexpr_holdout)
-            uTCGA_val_latent_vector = EN_model(X_t_holdout)
+            EN_model.eval()
+            GCN_model.eval()
+            X_gene_expr_holdout_vector = EN_model(X_gexpr_holdout)
+            X_t_holdout_vector = EN_model(X_t_holdout)
+            base_tsne_path = self.config["csv"]["umap_path"]
+            umap_save_path = base_tsne_path.replace(".png", f"/fold{self.outer_fold}/Before_Training.png")
+            os.makedirs(os.path.dirname(umap_save_path), exist_ok=True)
             TCGA_Viz(
-                GDSC_val_latent_vector,
-                uTCGA_val_latent_vector,
-                save_path=tsne_save_path,
+                X_gene_expr_holdout_vector,
+                X_t_holdout_vector,
+                save_path=umap_save_path,
                 title=f"UMAP @ Fold {self.outer_fold}, Before Training",
             )
         
@@ -386,15 +391,12 @@ class train_WANCDR:
                 best_metric = deepcopy(log_metric)
                 if self.config['umap_log']:    
                     base_tsne_path = self.config["csv"]["umap_path"]
-                    tsne_save_path = base_tsne_path.replace(".png", f"/fold{self.outer_fold}/epoch{epoch}.png")
-                    
-                    # 디렉토리 자동 생성
-                    os.makedirs(os.path.dirname(tsne_save_path), exist_ok=True)
+                    umap_save_path = base_tsne_path.replace(".png", f"/fold{self.outer_fold}/epoch{epoch}.png")
                     
                     TCGA_Viz(
                         GDSC_val_latent_vector,
                         uTCGA_val_latent_vector,
-                        save_path=tsne_save_path,
+                        save_path=umap_save_path,
                         title=f"UMAP @ Fold {self.outer_fold}, Epoch {epoch}"
                     )
             else:
@@ -413,6 +415,15 @@ class train_WANCDR:
 
             if wait >= self.config['train']['patient']:
                 print(f"Early stopping at epoch {epoch} due to no improvement.")
+                base_tsne_path = self.config["csv"]["umap_path"]
+                umap_save_path = base_tsne_path.replace(".png", f"/fold{self.outer_fold}/epoch{epoch}.png")
+                
+                TCGA_Viz(
+                    GDSC_val_latent_vector,
+                    uTCGA_val_latent_vector,
+                    save_path=umap_save_path,
+                    title=f"UMAP @ Fold {self.outer_fold}, Epoch {epoch}"
+                )
                 break
 
         run.finish()

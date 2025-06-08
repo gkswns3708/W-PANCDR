@@ -552,7 +552,6 @@ def load_preprocessed_tcga(tcga_root):
 
 # UMAP viz
 def TCGA_Viz(GDSC_latent, TCGA_latent, save_path=None, title="UMAP Visualization"):
-    print(GDSC_latent.shape, TCGA_latent.shape)
     if isinstance(GDSC_latent, torch.Tensor):
         TCGA_cnt = TCGA_latent.shape[0]
         random_indices = np.random.choice(
@@ -571,7 +570,7 @@ def TCGA_Viz(GDSC_latent, TCGA_latent, save_path=None, title="UMAP Visualization
             n_neighbors=30,     # 구조 유지
             min_dist=0.05,      # 조밀하게
             spread=0.5,         # 전체 range 줄이기
-            random_state=42
+            # random_state=42
         )
     X_embedded = umap_model.fit_transform(X)
 

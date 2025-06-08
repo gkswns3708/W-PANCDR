@@ -1,4 +1,7 @@
 Model,Classification,Best_params
 PANCDR,T,"{'nz': 128, 'd_dim': 100, 'lr': 0.0001, 'lr_adv': 0.0001, 'lam': 0.01, 'batch_size': [128, 14]}"
-WANCDR,T,"{'nz': 256, 'd_dim': 128, 'lr': 0.0001, 'lr_adv': 0.0001, 'lam': 0.0001, 'batch_size': [128, 14]}"
 DeepCDR,T,"{'nz': 128, 'd_dim': 256, 'lr': 0.0001, 'batch_size': 128}"
+WANCDR,T,"{'nz': 100, 'd_dim': 256, 'lr': 0.0001, 'lr_adv': 0.0001, 'lam': 0.0001, 'batch_size': [128, 14]}"
+WANCDR_5Critic,T,"{'nz': 100, 'd_dim': 256, 'lr': 0.00001, 'lr_adv': 0.00002, 'lam': 0.001, 'batch_size': [256, 28]}"
+WANCDR_Gaussian,T,"{'nz': 256, 'd_dim': 128, 'lr': 0.0001, 'lr_adv': 0.00002, 'lam': 0.0001, 'batch_size': [128, 14]}"
+WANCDR_Gaussian_5Critic,T,"{'nz': 100, 'd_dim': 256, 'lr': 0.0001, 'lr_adv': 0.0001, 'lam': 0.0001, 'batch_size': [128, 14]}"

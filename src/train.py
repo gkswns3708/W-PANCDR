@@ -207,7 +207,8 @@ if __name__ == "__main__":
             
     elif config['test_dataset'] == 'TCGA':
         df = pd.read_csv("tuned_hyperparameters/TCGA_CV_params.csv")
-        best_params = eval(df.loc[(df["Model"]=="WANCDR") & (df["Classification"]=="T"),"Best_params"].values[0])
+        best_params = eval(df.loc[(df["Model"]==config['mode']) & (df["Classification"]=="T"),"Best_params"].values[0])
+        print("best_params: ", best_params)
         csv_path = config['csv']['TCGA_result_file_path']
             # ➤ 1. 기존 CSV 불러오기 (있으면)
         if os.path.exists(csv_path):
@@ -218,7 +219,7 @@ if __name__ == "__main__":
             done_iters = set()
 
         # ➤ 2. 반복 시작
-        for iter in range(100):
+        for iter in range(10):
             if iter in done_iters:
                 print(f"Skipping iteration {iter}, already recorded.")
                 continue

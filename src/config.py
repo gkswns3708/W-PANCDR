@@ -46,7 +46,7 @@ class Config(object):
         }
         config['train'] = {
             'weight_path': f'./logs/{current_version}/',
-            'max_epochs': 200,
+            'max_epochs': 1000,
         }
         config['preprocessed'] = {
             'gdsc_path': f'{DPATH}/Preprocessed/GDSC',
