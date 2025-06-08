@@ -376,7 +376,7 @@ class train_WANCDR:
             # Early stopping 및 best metric 갱신
             save = False
             if self.config["test_metric"] == "W_distance":
-                if log_metric["Val W_distance"] < best_metric["Val W_distance"]:
+                if log_metric["Val W_distance"] < abs(best_metric["Val W_distance"]) and epoch > 20:  # for Critic warm up 
                     save = True
             elif self.config["test_metric"] == "Loss":
                 if log_metric["Val total_loss"] < best_metric["Val total_loss"]:
@@ -413,7 +413,7 @@ class train_WANCDR:
             df_all.to_csv(current_csv_path, index=False)
 
 
-            if wait >= self.config['train']['patient']:
+            if wait >= self.config['train']['patient'] and epoch > 20:
                 print(f"Early stopping at epoch {epoch} due to no improvement.")
                 base_tsne_path = self.config["csv"]["umap_path"]
                 umap_save_path = base_tsne_path.replace(".png", f"/fold{self.outer_fold}/epoch{epoch}.png")
